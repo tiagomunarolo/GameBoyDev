@@ -1,0 +1,15 @@
+{
+    "version": "2.0.0",
+    "configurations": [
+        {
+            "name": "Debug GB",
+            "program": "${workspaceRoot}/build/GameBoyDevEmulator",
+            "type": "lldb-dap",
+            "request": "launch",
+            "cwd": "${workspaceRoot}",
+            "args": ["${workspaceRoot}/games/01-special.gb"],
+            "env": [],
+            "preLaunchTask": "build"
+        }
+    ]
+}
