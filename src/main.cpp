@@ -14,8 +14,6 @@ void main_loop(GB *gb)
     // SDL Event Loop (Runs in Background)
     SDL_Event event;
     UI *ui = gb->get_ui();
-    // create a thread to run the pipeline
-    // std::thread gb_thread(run_pipeline, gb);
     // main UI loop
     std::string current(gb->serial_output());
     while (ui->running)
