@@ -17,6 +17,7 @@ private:
   InterruptionContoller *interruption;
   TimerHanlder *timer;
   SerialHandler *serial;
+  std::atomic<bool> run; // thread controller
 
 public:
   GB(const char *rom);
@@ -37,4 +38,6 @@ public:
   void set_instruction_type();
   void update_current_instruction();
   void execute_step();
+  std::atomic<bool> thread_run();
+  void kill();
 };

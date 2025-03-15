@@ -7,6 +7,9 @@
 // Constructor
 GB::GB(const char *rom)
 {
+    // thread run flag
+    run = true;
+    // debug step
     step = 0;
     // memory
     memory = new Memory(rom);
@@ -173,3 +176,12 @@ void GB::execute_step()
     // Otherwise, execute the next instruction
     this->execute_instruction();
 }
+
+std::atomic<bool> GB::thread_run()
+{
+    return this->run.load();
+}
+void GB::kill()
+{
+    this->run = false;
+};

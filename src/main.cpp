@@ -15,7 +15,11 @@ void main_loop(GB *gb)
     SDL_Event event;
     UI *ui = gb->get_ui();
     // main UI loop
-    std::string current(gb->serial_output());
+    std::string current("");
+    // create thread for pipeline
+    std::thread gb_thread(run_pipeline, gb);
+    gb_thread.detach();
+
     while (ui->running)
     {
         while (SDL_PollEvent(&event))
@@ -27,8 +31,10 @@ void main_loop(GB *gb)
             ui->renderText(gb->serial_output());
             current = std::string(gb->serial_output());
         }
-        run_pipeline(gb);
+        // sleep for 100ms to reduce cpu usage
+        SDL_Delay(100);
     }
+    gb->kill();
     ui->quit();
 }
 
