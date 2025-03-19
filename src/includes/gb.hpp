@@ -5,6 +5,7 @@
 #include "serial.hpp"
 #include "timer.hpp"
 #include "ui.hpp"
+#include "ppu.hpp"
 
 using namespace std;
 
@@ -13,6 +14,7 @@ class GB
 private:
   UI *ui;
   CPU *cpu;
+  PixelProcessingUnit *ppu;
   Memory *memory;
   InterruptionContoller *interruption;
   TimerHanlder *timer;

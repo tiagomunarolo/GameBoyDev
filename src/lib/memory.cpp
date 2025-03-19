@@ -32,11 +32,16 @@ Memory::Memory(const char *rom)
 {
     this->rom = rom;
     build_wram(rom[0x149], this);
+
     io[0] = 0xcf;
 
     // serial
     io[1] = 0x00;
     io[2] = 0x7e;
+
+    // set initial vram map tiles
+    for (int i = 0x9800; i <= 0x9fff; i++)
+        vram[i - 0x8000] = 0x7f;
 
     io[3] = 0xff;
     io[8] = 0xff;
@@ -95,20 +100,6 @@ Memory::Memory(const char *rom)
     io[61] = 0x10;
     io[62] = 0xff;
     io[63] = 0x00;
-
-    // LCD
-    io[0x40] = 0x91;
-    io[0x41] = 0x81;
-    io[0x42] = 0x00;
-    io[0x43] = 0x00;
-    io[0x44] = 0x90;
-    io[0x45] = 0x00;
-    io[0x46] = 0xff;
-    io[0x47] = 0xfc;
-    io[0x48] = 0xff;
-    io[0x49] = 0xff;
-    io[0x4A] = 0x00;
-    io[0x4B] = 0x00;
 
     for (int i = 76; i <= 127; i++)
         io[i] = 0xff;

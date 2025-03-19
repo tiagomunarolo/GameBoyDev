@@ -21,11 +21,11 @@ class Memory
 public:
     const char *rom;
     u8 current_wram1;
-    u8 vram[0x2000];
+    u8 vram[0x2000] = {0x00};
     u8 external_ram[0x2000];
     u8 wram0[0x1000];
     u8 **wram1; // wram banks 1-7
-    u8 oam[0xA0];
+    u8 oam[0xA0] = {0xff};
     u8 io[0x80];
     u8 hiram[0x80];
     u8 rom_bank1 = 1;

@@ -21,8 +21,10 @@ GB::GB(const char *rom)
     timer = new TimerHanlder(memory);
     // serial
     serial = new SerialHandler(memory);
-    // halt flag
-    ui = new UI();
+    // ppu
+    ppu = new PixelProcessingUnit(memory);
+    // ui
+    ui = new UI(memory, ppu);
 }
 
 // Returns a pointer to the UI instance

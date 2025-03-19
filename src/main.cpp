@@ -11,27 +11,15 @@ using namespace std;
 
 void main_loop(GB *gb)
 {
-    // SDL Event Loop (Runs in Background)
-    SDL_Event event;
     UI *ui = gb->get_ui();
-    // main UI loop
-    std::string current("");
     // create thread for pipeline
     std::thread gb_thread(run_pipeline, gb);
     gb_thread.detach();
 
     while (ui->running)
     {
-        while (SDL_PollEvent(&event))
-            if (event.type == SDL_QUIT)
-                ui->running = false;
-        // compare string with previous string
-        if (current != std::string(gb->serial_output()))
-        {
-            ui->renderText(gb->serial_output());
-            current = std::string(gb->serial_output());
-        }
-        // sleep for 100ms to reduce cpu usage
+        ui->check_event();
+        ui->update();
         SDL_Delay(100);
     }
     gb->kill();

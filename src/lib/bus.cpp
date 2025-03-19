@@ -30,7 +30,7 @@ u8 read_u8bit_address(u16 address, Memory *mem)
     }
     else if (address <= 0x9FFF)
     { // video ram
-        throw std::runtime_error("INVALID ADDRESS RANGE: vram");
+        return mem->vram[address - 0x8000];
     }
     else if (address <= 0xBFFF)
     { // 8 KiB External RAM
@@ -50,7 +50,7 @@ u8 read_u8bit_address(u16 address, Memory *mem)
     }
     else if (address <= 0xFE9F)
     { // OAM
-        throw std::runtime_error("INVALID ADDRESS RANGE: oam");
+        return mem->oam[address - 0xfe00];
     }
     else if (address <= 0xFEFF)
     { // prohibited
@@ -69,7 +69,7 @@ u8 read_u8bit_address(u16 address, Memory *mem)
     else if (address == 0xFFFF)
         return mem->ie;
 
-    throw std::runtime_error("Interrupt read");
+    throw std::runtime_error("Error reading invalid address");
 }
 
 u16 read_u16bit_address(u16 address, Memory *mem)
@@ -124,7 +124,7 @@ void bus_write(u16 address, u8 value, Memory *mem)
     }
     else if (address <= 0xFE9F)
     { // OAM
-        throw std::runtime_error("INVALID ADDRESS RANGE: <oam>");
+        mem->oam[address - 0xfe00] = value;
         return;
     }
     else if (address <= 0xFEFF)
@@ -145,6 +145,15 @@ void bus_write(u16 address, u8 value, Memory *mem)
         else if (address == 0xff70)
         { // wram1 select
             mem->current_wram1 = value;
+        }
+        else if (address == 0xff46)
+        { // // DMA OAM transfer
+            mem->io[address - 0xFF00] = value;
+            for (int i = 0; i < 0xA0; i++)
+            {
+                u16 addr = (value << 8) + i;
+                mem->oam[i] = read_u8bit_address(addr, mem);
+            }
         }
         else
         {
