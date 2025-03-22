@@ -1,5 +1,5 @@
 # set minimum cmake version
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 # project name
 project(GameBoyDevEmulator VERSION 0.1.0 LANGUAGES C CXX)
 # set C++ standard to C++17
@@ -21,8 +21,8 @@ find_package(SDL2 REQUIRED)
 
 # set debug flags
 # Enable debug flags for GCC/Clang
-# set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG")
-# set(CMAKE_C_FLAGS_DEBUG "-g -O0 -DDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG_CPU -DDEBUG")
+#set(CMAKE_C_FLAGS_DEBUG "-g -O0 -DDEBUG_CPU -DDEBUG")
 
 # Set SDL2 paths manually
 set(SDL2_INCLUDE_DIRS "/opt/homebrew/include/SDL2")

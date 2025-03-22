@@ -1,4 +1,5 @@
 #include "memory.hpp"
+#include "cart.hpp"
 
 static void build_wram(u8 num_banks, Memory *mem)
 {
@@ -31,6 +32,7 @@ static void build_wram(u8 num_banks, Memory *mem)
 Memory::Memory(const char *rom)
 {
     this->rom = rom;
+    this->ram_enable = false;
     build_wram(rom[0x149], this);
 
     io[0] = 0xcf;
@@ -104,3 +106,5 @@ Memory::Memory(const char *rom)
     for (int i = 76; i <= 127; i++)
         io[i] = 0xff;
 };
+
+Memory *memory = nullptr;

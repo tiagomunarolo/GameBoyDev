@@ -123,3 +123,5 @@ u8 PixelProcessingUnit::get_scy()
 {
     return *this->scy;
 }
+
+PixelProcessingUnit *ppu = nullptr;

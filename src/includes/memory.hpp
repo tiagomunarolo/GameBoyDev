@@ -29,8 +29,11 @@ public:
     u8 io[0x80];
     u8 hiram[0x80];
     u8 rom_bank1 = 1;
+    bool ram_enable;
     u8 iflags = 0xe1; // ff0f
     u8 ie = 0x00;     // interruption enable ffff
 
     Memory(const char *rom);
 };
+
+extern Memory *memory;

@@ -12,14 +12,13 @@ using namespace std;
 class GB
 {
 private:
-  UI *ui;
-  CPU *cpu;
-  PixelProcessingUnit *ppu;
-  Memory *memory;
-  InterruptionContoller *interruption;
-  TimerHanlder *timer;
-  SerialHandler *serial;
-  std::atomic<bool> run; // thread controller
+  UI *ui_ctx;
+  CPU *cpu_ctx;
+  PixelProcessingUnit *ppu_ctx;
+  Memory *memory_ctx;
+  InterruptionContoller *interruption_ctx;
+  TimerHanlder *timer_ctx;
+  SerialHandler *serial_ctx;
 
 public:
   GB(const char *rom);
@@ -29,17 +28,7 @@ public:
   InterruptionContoller *get_interruption();
   TimerHanlder *get_timer();
   long step; // internal step (only debugging)
-  void check_halt();
-  void call_interruption();
-  void check_interruption();
-  void check_timer_overflow();
-  const char *serial_output();
-  void fetch_instruction();
-  void fetch_data();
-  void execute_instruction();
-  void set_instruction_type();
-  void update_current_instruction();
-  void execute_step();
-  std::atomic<bool> thread_run();
-  void kill();
+  void stop_cpu();
 };
+
+extern GB *gb;

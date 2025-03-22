@@ -14,3 +14,5 @@ public:
     SerialHandler(Memory *mem);
     const char *output_serial_data();
 };
+
+extern SerialHandler *serial;

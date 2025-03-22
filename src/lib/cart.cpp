@@ -169,6 +169,5 @@ const char *get_game(int argc, const char *argv[])
         std::cout << "Failed to read cartridge!" << std::endl;
         exit(1);
     }
-
     return game_content;
 }

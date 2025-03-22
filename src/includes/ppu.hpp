@@ -54,3 +54,5 @@ public:
     u8 get_scx();
     u8 get_scy();
 };
+
+extern PixelProcessingUnit *ppu;

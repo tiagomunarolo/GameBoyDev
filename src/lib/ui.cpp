@@ -48,7 +48,7 @@ void UI::sdl_init()
                                       rows);
     SDL_FillRect(this->screen, NULL, tile_colors[0]);
 
-#ifdef DEBUG
+#ifdef DEBUG_UI
     // debug window
     num_cols = 16;
     num_rows = 24;
@@ -127,7 +127,7 @@ void render_surface(SDL_Texture *texture, SDL_Renderer *renderer, SDL_Surface *s
     SDL_RenderPresent(renderer);
 }
 
-#ifdef DEBUG
+#ifdef DEBUG_UI
 void UI::update_dbg_window()
 {
     int xDraw = 0;
@@ -188,7 +188,7 @@ void UI::update()
 {
     if (this->ppu->lcd_is_on())
         this->update_window();
-#ifdef DEBUG
+#ifdef DEBUG_UI
     this->update_dbg_window();
 #endif
 };
@@ -234,3 +234,5 @@ void UI::quit()
     SDL_Quit();
     TTF_Quit();
 }
+
+UI *ui = nullptr;

@@ -32,9 +32,8 @@ private:
     SDL_Color color;
     Memory *mem;
     PixelProcessingUnit *ppu;
-    void renderText(const std::string &text);
     void update_window();
-#ifdef DEBUG
+#ifdef DEBUG_UI
     void update_dbg_window();
 #endif
     void sdl_init();
@@ -46,3 +45,5 @@ public:
     void check_event();
     void quit();
 };
+
+extern UI *ui;

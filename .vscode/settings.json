@@ -55,7 +55,9 @@
         "algorithm": "cpp",
         "charconv": "cpp",
         "forward_list": "cpp",
-        "__availability": "cpp"
+        "__availability": "cpp",
+        "__config": "cpp",
+        "version": "cpp"
     },
     "editor.defaultFormatter": "ms-vscode.cpptools",
     "notebook.defaultFormatter": "ms-vscode.cpptools"

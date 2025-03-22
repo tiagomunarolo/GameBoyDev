@@ -20,3 +20,5 @@ const char *SerialHandler::output_serial_data()
 
     return this->data[0] ? this->data : "Serial data not available";
 }
+
+SerialHandler *serial = nullptr;

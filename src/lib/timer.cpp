@@ -69,3 +69,5 @@ int TimerHanlder::check_tima()
         return 0;
     }
 }
+
+TimerHanlder *timer = nullptr;

@@ -641,87 +641,57 @@ const char *mnemonicToString(Mnemonic mnemonic)
 
 const char *operandToString(Operand operand)
 {
-    switch (operand)
-    {
-    case A:
-        return "A";
-    case B:
-        return "B";
-    case C:
-        return "C";
-    case D:
-        return "D";
-    case E:
-        return "E";
-    case F:
-        return "F";
-    case H:
-        return "H";
-    case L:
-        return "L";
-    case A16:
-        return "A16";
-    case A8:
-        return "A8";
-    case AF:
-        return "AF";
-    case BC:
-        return "BC";
-    case DE:
-        return "DE";
-    case E8:
-        return "E8";
-    case HL:
-        return "HL";
-    case N16:
-        return "N16";
-    case N8:
-        return "N8";
-    case NC:
-        return "NC";
-    case NULL_OP:
-        return "NULL_OP";
-    case NZ:
-        return "NZ";
-    case RST_00:
-        return "RST_00";
-    case RST_08:
-        return "RST_08";
-    case RST_10:
-        return "RST_10";
-    case RST_18:
-        return "RST_18";
-    case RST_20:
-        return "RST_20";
-    case RST_28:
-        return "RST_28";
-    case RST_30:
-        return "RST_30";
-    case RST_38:
-        return "RST_38";
-    case SP:
-        return "SP";
-    case Z:
-        return "Z";
-    case BIT_0:
-        return "BIT_0";
-    case BIT_1:
-        return "BIT_1";
-    case BIT_2:
-        return "BIT_2";
-    case BIT_3:
-        return "BIT_3";
-    case BIT_4:
-        return "BIT_4";
-    case BIT_5:
-        return "BIT_5";
-    case BIT_6:
-        return "BIT_6";
-    case BIT_7:
-        return "BIT_7";
-    default:
-        return "UNKNOWN";
-    }
+    return std::visit([](auto &&arg) -> const char *
+                      {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, Registers>) {
+            switch (arg) {
+                case A: return "A";
+                case B: return "B";
+                case C: return "C";
+                case D: return "D";
+                case E: return "E";
+                case F: return "F";
+                case H: return "H";
+                case L: return "L";
+                case AF: return "AF";
+                case BC: return "BC";
+                case DE: return "DE";
+                case HL: return "HL";
+                case SP: return "SP";
+                default: return "UNKNOWN_REGISTER";
+            }
+        } else if constexpr (std::is_same_v<T, operand_types>) {
+            switch (arg) {
+                case A16: return "A16";
+                case A8: return "A8";
+                case E8: return "E8";
+                case N16: return "N16";
+                case N8: return "N8";
+                case NC: return "NC";
+                case NULL_OP: return "NULL_OP";
+                case Z: return "Z";
+                case NZ: return "NZ";
+                case RST_00: return "RST_00";
+                case RST_08: return "RST_08";
+                case RST_10: return "RST_10";
+                case RST_18: return "RST_18";
+                case RST_20: return "RST_20";
+                case RST_28: return "RST_28";
+                case RST_30: return "RST_30";
+                case RST_38: return "RST_38";
+                case BIT_0: return "BIT_0";
+                case BIT_1: return "BIT_1";
+                case BIT_2: return "BIT_2";
+                case BIT_3: return "BIT_3";
+                case BIT_4: return "BIT_4";
+                case BIT_5: return "BIT_5";
+                case BIT_6: return "BIT_6";
+                case BIT_7: return "BIT_7";
+                default: return "UNKNOWN_OPERAND";
+            }
+        }
+        return "UNKNOWN"; }, operand);
 }
 
 InstructionSet get_instruction_by_opcode(u8 opcode, InstructionType type)

@@ -16,41 +16,43 @@
 
 using namespace std;
 
-u8 read_u8bit_address(u16 address, Memory *mem)
+u8 read_u8bit_address(u16 address)
 {
     if (address <= 0x3FFF)
     { // rom bank 0
-        return mem->rom[address];
+        return memory->rom[address];
     }
     else if (address <= 0x7FFF)
     { // rom bank 1 switchable
-        u8 current_bank = mem->rom_bank1;
+        u8 current_bank = memory->rom_bank1;
         u16 addr = (current_bank * 0x4000) + (address - 0x4000);
-        return mem->rom[addr];
+        return memory->rom[addr];
     }
     else if (address <= 0x9FFF)
     { // video ram
-        return mem->vram[address - 0x8000];
+        return memory->vram[address - 0x8000];
     }
     else if (address <= 0xBFFF)
-    { // 8 KiB External RAM
-        throw std::runtime_error("INVALID ADDRESS RANGE: external ram");
+    {
+        if (!memory->ram_enable)
+            return 0xff;
+        return memory->external_ram[address - 0xA000];
     }
     else if (address <= 0xCFFF)
     { // wram 0
-        return mem->wram0[address - 0xC000];
+        return memory->wram0[address - 0xC000];
     }
     else if (address <= 0xDFFF)
     { // wram 1
-        return mem->wram1[mem->current_wram1][address - 0xD000];
+        return memory->wram1[memory->current_wram1][address - 0xD000];
     }
     else if (address <= 0xFDFF)
     { // echo ram
-        return mem->wram0[address - 0xC000];
+        return memory->wram0[address - 0xC000];
     }
     else if (address <= 0xFE9F)
     { // OAM
-        return mem->oam[address - 0xfe00];
+        return memory->oam[address - 0xfe00];
     }
     else if (address <= 0xFEFF)
     { // prohibited
@@ -59,72 +61,81 @@ u8 read_u8bit_address(u16 address, Memory *mem)
     else if (address <= 0xFF7F)
     { // I/O registers
         if (address == 0xff0f)
-            return mem->iflags;
-        return mem->io[address - 0xFF00];
+            return memory->iflags;
+        return memory->io[address - 0xFF00];
     }
     else if (address >= 0xFF80 && address <= 0xFFFE)
     { // hram
-        return mem->hiram[address - 0xFF80];
+        return memory->hiram[address - 0xFF80];
     }
     else if (address == 0xFFFF)
-        return mem->ie;
+        return memory->ie;
 
     throw std::runtime_error("Error reading invalid address");
 }
 
-u16 read_u16bit_address(u16 address, Memory *mem)
+u16 read_u16bit_address(u16 address)
 {
-    u8 lo = read_u8bit_address(address, mem);
-    u8 hi = read_u8bit_address(address + 0x1, mem);
+    u8 lo = read_u8bit_address(address);
+    u8 hi = read_u8bit_address(address + 0x1);
     return (u16)((hi << 8) | lo);
 }
 
-int8_t read_8bit_address(u16 address, Memory *mem)
+int8_t read_8bit_address(u16 address)
 {
-    return (int8_t)read_u8bit_address(address, mem);
+    return (int8_t)read_u8bit_address(address);
 }
 
-void bus_write(u16 address, u8 value, Memory *mem)
+void bus_write(u16 address, u8 value)
 {
-    if (address <= 0x3FFF)
-    { // rom bank 0
-        throw std::runtime_error("INVALID RANGE: <ROM_BANK 0 (RO) >");
-        return;
-    }
-    else if (address <= 0x7FFF)
-    { // rom bank 1 switchable
-        // select current bannk
-        mem->rom_bank1 = 0b11111 & value;
-        return;
+    if (address < 0x8000)
+    {
+        // select current rom bank 1
+        if (0x0000 <= address && address <= 0x1FFF) // 0000–1FFF — RAM enable
+        {
+            memory->ram_enable = (value & 0x0f) == 0xA;
+            return;
+        }
+        else if (0x2000 <= address && address <= 0x3FFF)
+        {                                   // 2000–3FFF — ROM Bank Number (Write Only)
+            value = value == 0 ? 1 : value; // bank 0 is mapped to 1
+            memory->rom_bank1 = 0b11111 & value;
+            return;
+        }
+        else
+        {
+            printf("UNHALLED WRITE: address=0x%.4X, value=0x%.2X\n", address, value);
+        }
     }
     else if (address <= 0x9FFF)
     { // video ram
-        mem->vram[address - 0x8000] = value;
+        memory->vram[address - 0x8000] = value;
         return;
     }
     else if (address <= 0xBFFF)
     { // 8 KiB External RAM
-        throw std::runtime_error("INVALID ADDRESS RANGE: unimplemented");
+
+        memory->external_ram[address - 0xA000] = value;
         return;
     }
     else if (address <= 0xCFFF)
     { // wram 0
-        mem->wram0[address - 0xC000] = value;
+        memory->wram0[address - 0xC000] = value;
         return;
     }
     else if (address <= 0xDFFF)
     { // wram 1
-        mem->wram1[mem->current_wram1][address - 0xD000] = value;
+        memory->wram1[memory->current_wram1][address - 0xD000] = value;
         return;
     }
     else if (address <= 0xFDFF)
     { // echo ram
-        mem->wram0[address - 0xC000] = value;
+        memory->wram0[address - 0xC000] = value;
         return;
     }
     else if (address <= 0xFE9F)
     { // OAM
-        mem->oam[address - 0xfe00] = value;
+        memory->oam[address - 0xfe00] = value;
         return;
     }
     else if (address <= 0xFEFF)
@@ -136,54 +147,46 @@ void bus_write(u16 address, u8 value, Memory *mem)
         // Writing any value to this register resets it to $00
         if (address == 0xff04)
         { // timer div
-            mem->io[0x4] = 0x00;
+            memory->io[0x4] = 0x00;
         }
         else if (address == 0xff0f)
         {
-            mem->iflags = value;
+            memory->iflags = value;
         }
         else if (address == 0xff70)
         { // wram1 select
-            mem->current_wram1 = value;
+            memory->current_wram1 = value;
         }
         else if (address == 0xff46)
         { // // DMA OAM transfer
-            mem->io[address - 0xFF00] = value;
+            memory->io[address - 0xFF00] = value;
             for (int i = 0; i < 0xA0; i++)
             {
                 u16 addr = (value << 8) + i;
-                mem->oam[i] = read_u8bit_address(addr, mem);
+                memory->oam[i] = read_u8bit_address(addr);
             }
         }
         else
         {
-            mem->io[address - 0xFF00] = value;
+            memory->io[address - 0xFF00] = value;
         }
         return;
     }
     else if (address >= 0xFF80 && address <= 0xFFFE)
     { // hram
-        mem->hiram[address - 0xFF80] = value;
+        memory->hiram[address - 0xFF80] = value;
         return;
     }
     else
     {
-        mem->ie = value;
+        memory->ie = value;
     }
 }
 
-void bus_write16(u16 address, u16 value, Memory *mem)
+void bus_write16(u16 address, u16 value)
 {
     u8 high = value >> 8;
     u8 low = value & 0xff;
-    if ((address & 0xff) == 0x00)
-    {
-        bus_write(address + 1, high, mem);
-        bus_write(address, low, mem);
-    }
-    else
-    {
-        bus_write(address + 1, high, mem);
-        bus_write(address, low, mem);
-    }
+    bus_write(address + 1, high);
+    bus_write(address, low);
 }

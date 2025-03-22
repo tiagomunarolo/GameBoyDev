@@ -7,7 +7,7 @@
             "type": "lldb-dap",
             "request": "launch",
             "cwd": "${workspaceRoot}",
-            "args": ["${workspaceRoot}/games/tetris.gb"],
+            "args": ["${workspaceRoot}/games/cpu_instrs.gb"],
             "env": [],
             "preLaunchTask": "build"
         }

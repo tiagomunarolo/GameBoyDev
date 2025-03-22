@@ -1,4 +1,7 @@
+#pragma once
+#include <variant>
 
+using namespace std;
 
 enum InstructionType
 {
@@ -6,7 +9,15 @@ enum InstructionType
     NON_PREFIXED_TYPE
 };
 
-typedef enum operand_types
+typedef enum CpuFlags
+{
+    CARRY_FLAG,
+    ZERO_FLAG,
+    HC_FLAG,
+    SUB_FLAG
+} cpuFlags;
+
+typedef enum Registers
 {
     A = 0, // for cpu indexing
     B = 1,
@@ -16,17 +27,23 @@ typedef enum operand_types
     F = 5,
     H = 6,
     L = 7,
-    A16,
-    A8,
     AF,
     BC,
     DE,
-    E8,
     HL,
+    SP,
+} Registers;
+
+typedef enum operand_types
+{
+    A16,
+    A8,
+    E8,
     N16,
     N8,
     NC,
     NULL_OP,
+    Z,
     NZ,
     RST_00,
     RST_08,
@@ -36,8 +53,6 @@ typedef enum operand_types
     RST_28,
     RST_30,
     RST_38,
-    SP,
-    Z,
     BIT_0,
     BIT_1,
     BIT_2,
@@ -46,7 +61,9 @@ typedef enum operand_types
     BIT_5,
     BIT_6,
     BIT_7,
-} Operand;
+} operand_types;
+
+typedef std::variant<operand_types, Registers> Operand;
 
 typedef enum operation_type
 {

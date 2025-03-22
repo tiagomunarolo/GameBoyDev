@@ -1,790 +1,815 @@
 #include "processor.hpp"
 #include "bus.hpp"
-#include "register.hpp"
+#include "cpu.hpp"
 #include "stack.hpp"
+#include "timer.hpp"
+#include "interruption.hpp"
 
-bool check_half_carry(u8 v1, u8 v2)
+using namespace std;
+
+static bool check_register(Operand op, Registers reg)
 {
-    return ((v1 & 0x0F) + (v2 & 0x0F)) > 0x0F;
+    auto isReg = std::get_if<Registers>(&op);
+    return isReg && *isReg == reg;
 }
 
-bool check_half_carry(u16 v1, u16 v2)
+static bool check_operand(Operand op, operand_types operand)
 {
-    return ((v1 & 0x0FFF) + (v2 & 0x0FFF)) > 0x0FFF;
+    auto isOperand = std::get_if<operand_types>(&op);
+    return isOperand && *isOperand == operand;
 }
 
-u8 get_prefix_operator(GB *gb)
+u8 get_prefix_operator()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
-    if (in.op1 != HL && in.op2 != HL)
+    InstructionSet in = cpu->getInstruction();
+    if (!check_register(in.op1, HL) && !check_register(in.op2, HL))
     {
-        if (in.op2 == NULL_OP)
-            return fetch_reg8(gb->get_cpu(), in.op1);
-        else
-            return fetch_reg8(gb->get_cpu(), in.op2);
+        if (check_operand(in.op2, NULL_OP))
+            return cpu->getRegister(in.op1);
+        return cpu->getRegister(in.op2);
     }
 
-    u16 addr = fetch_reg16(gb->get_cpu(), HL);
-    u8 current = read_u8bit_address(addr, gb->get_memory());
-    gb->get_timer()->update_timer(in.cycles);
+    u16 addr = cpu->getRegister(HL);
+    u8 current = read_u8bit_address(addr);
+    timer->update_timer(in.cycles);
     return current;
 }
 
-void set_prefix_operator(GB *gb, InstructionSet in, u8 value)
+void set_prefix_operator(InstructionSet in, u8 value)
 {
 
-    if (in.op1 == HL || in.op2 == HL)
-        bus_write(fetch_reg16(gb->get_cpu(), HL), value, gb->get_memory());
+    if (check_register(in.op1, HL) || check_register(in.op2, HL))
+        bus_write(cpu->getRegister(HL), value);
     else
     {
-        if (in.op2 == NULL_OP)
-            set_register_value(gb->get_cpu(), in.op1, value);
+        if (check_operand(in.op2, NULL_OP))
+            cpu->setRegister(in.op1, value);
         else
-            set_register_value(gb->get_cpu(), in.op2, value);
+            cpu->setRegister(in.op2, value);
     }
 }
 
-void execute_none(GB *gb)
+void execute_none()
 {
     // do nothing
-    InstructionSet in = gb->get_cpu()->current_instruction;
-    gb->get_timer()->update_timer(in.cycles);
+    InstructionSet in = cpu->getInstruction();
+    timer->update_timer(in.cycles);
 }
 
-void int_timer_handler(GB *gb)
+void int_timer_handler()
 {
     // store old pc, because current inst was note executed due to
     // interruption priority
-    push_stack(gb->get_cpu()->sp, gb->get_cpu()->old_pc, gb->get_memory());
-    gb->get_cpu()->pc = 0x50;
+    push_stack(cpu->getSP(), cpu->getOldPC());
+    cpu->setPC(0x50);
 }
 
 // Function for CP instruction
-void execute_compare(GB *gb)
+void execute_compare()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
-    gb->get_cpu()->sub_flag = true;
+    InstructionSet in = cpu->getInstruction();
+    cpu->setFlag(SUB_FLAG, true);
 
-    if (in.op1 == A && in.op2 == A)
+    if (check_register(in.op1, A) && check_register(in.op2, A))
     {
-        gb->get_cpu()->zero_flag = true;
-        gb->get_cpu()->half_carry_flag = false;
-        gb->get_cpu()->carry_flag = false;
+        cpu->setFlag(ZERO_FLAG, true);
+        cpu->setFlag(HC_FLAG, false);
+        cpu->setFlag(CARRY_FLAG, false);
     }
     else
     {
-        u8 reg_value = fetch_reg8(gb->get_cpu(), in.op1);
-        gb->get_cpu()->zero_flag = reg_value == gb->get_cpu()->fetched_data;
-        gb->get_cpu()->half_carry_flag =
-            (reg_value & 0xf) < (gb->get_cpu()->fetched_data & 0xf);
-        gb->get_cpu()->carry_flag = gb->get_cpu()->fetched_data > reg_value;
+        u8 reg_value = cpu->getRegister(in.op1);
+        cpu->setFlag(ZERO_FLAG, reg_value == cpu->getFetchedData());
+        cpu->setFlag(HC_FLAG,
+                     (reg_value & 0xf) < (cpu->getFetchedData() & 0xf));
+        cpu->setFlag(CARRY_FLAG, cpu->getFetchedData() > reg_value);
     }
-    gb->get_timer()->update_timer(in.cycles);
+    timer->update_timer(in.cycles);
 }
 
-void execute_call(GB *gb)
+void execute_call()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
     // if action not taken, 12 tick cycles
-    gb->get_timer()->update_timer(12);
-    if (in.op1 == NZ && gb->get_cpu()->zero_flag)
+    timer->update_timer(12);
+    if (check_operand(in.op1, NZ) && cpu->getFlag(ZERO_FLAG))
         return;
-    if (in.op1 == Z && !gb->get_cpu()->zero_flag)
+    if (check_operand(in.op1, Z) && !cpu->getFlag(ZERO_FLAG))
         return;
-    if (in.op1 == C && !gb->get_cpu()->carry_flag)
+    if (check_register(in.op1, C) && !cpu->getFlag(CARRY_FLAG))
         return;
-    if (in.op1 == NC && gb->get_cpu()->carry_flag)
+    if (check_operand(in.op1, NC) && cpu->getFlag(CARRY_FLAG))
         return;
-    push_stack(gb->get_cpu()->sp, gb->get_cpu()->pc, gb->get_memory());
-    gb->get_cpu()->pc = gb->get_cpu()->fetched_data;
+    push_stack(cpu->getSP(), cpu->getPC());
+    cpu->setPC(cpu->getFetchedData());
     // if action taken, additional 12 tick cycles (3 m cycles)
-    gb->get_timer()->update_timer(12);
+    timer->update_timer(12);
 }
 
-void execute_jump(GB *gb)
+void execute_jump()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    if (in.op1 == A16)
+    if (check_operand(in.op1, A16))
     {
         // unconditional jump -> 4m cycles
-        gb->get_timer()->update_timer(in.cycles);
-        gb->get_cpu()->pc = gb->get_cpu()->fetched_data;
+        timer->update_timer(in.cycles);
+        cpu->setPC(cpu->getFetchedData());
     }
-    else if (in.op1 == C && gb->get_cpu()->carry_flag)
+    else if (check_register(in.op1, C) && cpu->getFlag(CARRY_FLAG))
     {
-        gb->get_timer()->update_timer(in.cycles);
-        gb->get_cpu()->pc = gb->get_cpu()->fetched_data;
+        timer->update_timer(in.cycles);
+        cpu->setPC(cpu->getFetchedData());
     }
-    else if (in.op1 == NC && !gb->get_cpu()->carry_flag)
+    else if (check_operand(in.op1, NC) && !cpu->getFlag(CARRY_FLAG))
     {
-        gb->get_timer()->update_timer(in.cycles);
-        gb->get_cpu()->pc = gb->get_cpu()->fetched_data;
+        timer->update_timer(in.cycles);
+        cpu->setPC(cpu->getFetchedData());
     }
-    else if (in.op1 == Z && gb->get_cpu()->zero_flag)
+    else if (check_operand(in.op1, Z) && cpu->getFlag(ZERO_FLAG))
     {
-        gb->get_timer()->update_timer(in.cycles);
-        gb->get_cpu()->pc = gb->get_cpu()->fetched_data;
+        timer->update_timer(in.cycles);
+        cpu->setPC(cpu->getFetchedData());
     }
-    else if (in.op1 == NZ && !gb->get_cpu()->zero_flag)
+    else if (check_operand(in.op1, NZ) && !cpu->getFlag(ZERO_FLAG))
     {
-        gb->get_timer()->update_timer(in.cycles);
-        gb->get_cpu()->pc = gb->get_cpu()->fetched_data;
+        timer->update_timer(in.cycles);
+        cpu->setPC(cpu->getFetchedData());
     }
-    else if (in.op1 == HL)
+    else if (check_register(in.op1, HL))
     {
-        gb->get_timer()->update_timer(in.cycles);
-        gb->get_cpu()->pc = gb->get_cpu()->fetched_data;
+        timer->update_timer(in.cycles);
+        cpu->setPC(cpu->getFetchedData());
     }
     else
     {
         // jump with conditional not taken
-        gb->get_timer()->update_timer(12);
+        timer->update_timer(12);
     }
 }
 
-void execute_ret(GB *gb)
+void execute_ret()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    gb->get_timer()->update_timer(8); // 2m cycles if not executed
+    timer->update_timer(8); // 2m cycles if not executed
 
-    if (in.op1 == NZ && gb->get_cpu()->zero_flag)
+    if (check_operand(in.op1, NZ) && cpu->getFlag(ZERO_FLAG))
         return;
-    if (in.op1 == Z && !gb->get_cpu()->zero_flag)
+    else if (check_operand(in.op1, Z) && !cpu->getFlag(ZERO_FLAG))
         return;
-    if (in.op1 == C && !gb->get_cpu()->carry_flag)
+    else if (check_register(in.op1, C) && !cpu->getFlag(CARRY_FLAG))
         return;
-    if (in.op1 == NC && gb->get_cpu()->carry_flag)
+    else if (check_operand(in.op1, NC) && cpu->getFlag(CARRY_FLAG))
         return;
-    if (in.mnemonic == RETI)
-        *(gb->get_interruption()->ime_flag) = true;
+    else if (in.mnemonic == RETI)
+        cpu->setIME(true);
 
-    gb->get_timer()->update_timer(8); // 2m additional cycles if executed
-    if (in.op1 == NZ || in.op1 == Z || in.op1 == C || in.op1 == NC)
-        gb->get_timer()->update_timer(4);
-    gb->get_cpu()->pc = pop_stack(gb->get_cpu()->sp, gb->get_memory());
-    ;
+    timer->update_timer(8); // 2m additional cycles if executed
+    if (check_operand(in.op1, NZ) || check_operand(in.op1, Z) || check_register(in.op1, C) || check_operand(in.op1, NC))
+        timer->update_timer(4);
+
+    cpu->setPC(pop_stack(cpu->getSP()));
 }
 
-void execute_di(GB *gb)
+void execute_di()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    *gb->get_interruption()->ime_flag = false;
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setIME(false);
+    timer->update_timer(in.cycles);
 }
 
-void execute_ei(GB *gb)
+void execute_ei()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    *gb->get_interruption()->ime_flag = true;
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setIME(true);
+    timer->update_timer(in.cycles);
 }
 
-void execute_xor(GB *gb)
+void execute_xor()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    u8 xor1 = fetch_reg8(gb->get_cpu(), in.op1);
+    u8 xor1 = cpu->getRegister(in.op1);
     u8 xor2 = 0;
-    if (gb->get_cpu()->opcode == 0xAE ||
-        gb->get_cpu()->opcode == 0xEE) // xor a, [hl]
-        xor2 = gb->get_cpu()->fetched_data;
+    if (cpu->getOpcode() == 0xAE ||
+        cpu->getOpcode() == 0xEE) // xor a, [hl]
+        xor2 = cpu->getFetchedData();
     else
-        xor2 = fetch_reg8(gb->get_cpu(), in.op2);
+        xor2 = cpu->getRegister(in.op2);
 
-    gb->get_cpu()->a = xor1 ^ xor2;
-    gb->get_cpu()->zero_flag = xor1 == xor2;
-    gb->get_cpu()->carry_flag = 0;
-    gb->get_cpu()->sub_flag = 0;
-    gb->get_cpu()->half_carry_flag = 0;
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setRegister(A, xor1 ^ xor2);
+    cpu->setFlag(ZERO_FLAG, xor1 == xor2);
+    cpu->setFlag(CARRY_FLAG, 0);
+    cpu->setFlag(SUB_FLAG, 0);
+    cpu->setFlag(HC_FLAG, 0);
+    timer->update_timer(in.cycles);
 }
 
-void execute_dec(GB *gb)
+void execute_dec()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    if (gb->get_cpu()->opcode == 0x0B)
-        set_register_value(gb->get_cpu(), in.op1,
-                           gb->get_cpu()->fetched_data - 1);
-    else if (gb->get_cpu()->opcode == 0x1B)
-        set_register_value(gb->get_cpu(), in.op1,
-                           gb->get_cpu()->fetched_data - 1);
-    else if (gb->get_cpu()->opcode == 0x2B)
-        set_register_value(gb->get_cpu(), in.op1,
-                           gb->get_cpu()->fetched_data - 1);
-    else if (gb->get_cpu()->opcode == 0x3B) // dec sp
-        gb->get_cpu()->sp -= 1;
+    if (cpu->getOpcode() == 0x0B)
+        cpu->setRegister(in.op1,
+                         cpu->getFetchedData() - 1);
+    else if (cpu->getOpcode() == 0x1B)
+        cpu->setRegister(in.op1,
+                         cpu->getFetchedData() - 1);
+    else if (cpu->getOpcode() == 0x2B)
+        cpu->setRegister(in.op1,
+                         cpu->getFetchedData() - 1);
+    else if (cpu->getOpcode() == 0x3B) // dec sp
+        cpu->setRegister(SP, *cpu->getSP() - 1);
 
     else
     {
-        gb->get_cpu()->sub_flag = 1;
+        cpu->setFlag(SUB_FLAG, 1);
+        bool isReg16 = check_register(in.op1, BC) | check_register(in.op1, DE) | check_register(in.op1, HL) | check_register(in.op1, SP);
 
-        try
+        if (isReg16)
         {
-            u16 addr = fetch_reg16(gb->get_cpu(), in.op1);
+            u16 addr = cpu->getRegister(in.op1);
             // decrement byte pointed by r16
-            u8 content = read_u16bit_address(addr, gb->get_memory());
-            bus_write(addr, content - 1, gb->get_memory());
-            gb->get_cpu()->zero_flag = (content - 1) == 0;
-            gb->get_cpu()->half_carry_flag =
-                (content & 0xf) == 0x0 && ((content - 1) & 0xf) == 0xf;
+            u8 content = read_u16bit_address(addr);
+            bus_write(addr, content - 1);
+            cpu->setFlag(ZERO_FLAG, (content - 1) == 0);
+            cpu->setFlag(HC_FLAG,
+                         (content & 0xf) == 0x0 && ((content - 1) & 0xf) == 0xf);
         }
-        catch (const std::runtime_error &e)
+        else
         {
-            u8 reg_value = fetch_reg8(gb->get_cpu(), in.op1);
+            u8 reg_value = cpu->getRegister(in.op1);
             u8 value = reg_value - 1;
-            set_register_value(gb->get_cpu(), in.op1, value);
-            gb->get_cpu()->zero_flag = value == 0;
+            cpu->setRegister(in.op1, value);
+            cpu->setFlag(ZERO_FLAG, value == 0);
             // bit 4 >> sets bit 3
-            gb->get_cpu()->half_carry_flag =
-                (reg_value & 0xf) == 0x0 && (value & 0xf) == 0xf;
+            cpu->setFlag(HC_FLAG,
+                         (reg_value & 0xf) == 0x0 && (value & 0xf) == 0xf);
         }
     }
-    gb->get_timer()->update_timer(in.cycles);
+    timer->update_timer(in.cycles);
 }
-void execute_jr(GB *gb)
+void execute_jr()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    gb->get_timer()->update_timer(8); // 2m cycles if not executed
-    if (in.op1 == E8)
+    timer->update_timer(8); // 2m cycles if not executed
+    if (check_operand(in.op1, E8))
     {
-        gb->get_cpu()->pc = gb->get_cpu()->pc + gb->get_cpu()->fetched_data;
-        gb->get_timer()->update_timer(4);
+        cpu->setPC(cpu->getPC() + cpu->getFetchedData());
+        timer->update_timer(4);
     }
-    else if (in.op1 == NZ && !gb->get_cpu()->zero_flag)
+    else if (check_operand(in.op1, NZ) && !cpu->getFlag(ZERO_FLAG))
     {
-        gb->get_cpu()->pc = gb->get_cpu()->pc + gb->get_cpu()->fetched_data;
-        gb->get_timer()->update_timer(4);
+        cpu->setPC(cpu->getPC() + cpu->getFetchedData());
+        timer->update_timer(4);
     }
-    else if (in.op1 == Z && gb->get_cpu()->zero_flag)
+    else if (check_operand(in.op1, Z) && cpu->getFlag(ZERO_FLAG))
     {
-        gb->get_cpu()->pc = gb->get_cpu()->pc + gb->get_cpu()->fetched_data;
-        gb->get_timer()->update_timer(4);
+        cpu->setPC(cpu->getPC() + cpu->getFetchedData());
+        timer->update_timer(4);
     }
-    else if (in.op1 == C && gb->get_cpu()->carry_flag)
+    else if (check_register(in.op1, C) && cpu->getFlag(CARRY_FLAG))
     {
-        gb->get_cpu()->pc = gb->get_cpu()->pc + gb->get_cpu()->fetched_data;
-        gb->get_timer()->update_timer(4);
+        cpu->setPC(cpu->getPC() + cpu->getFetchedData());
+        timer->update_timer(4);
     }
-    else if (in.op1 == NC && !gb->get_cpu()->carry_flag)
+    else if (check_operand(in.op1, NC) && !cpu->getFlag(CARRY_FLAG))
     {
-        gb->get_cpu()->pc = gb->get_cpu()->pc + gb->get_cpu()->fetched_data;
-        gb->get_timer()->update_timer(4);
+        cpu->setPC(cpu->getPC() + cpu->getFetchedData());
+        timer->update_timer(4);
     }
 }
-void execute_add(GB *gb)
+void execute_add()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    gb->get_cpu()->sub_flag = false;
-    if (in.op1 == A)
+    cpu->setFlag(SUB_FLAG, false);
+    if (check_register(in.op1, A))
     {
-        int value = fetch_reg8(gb->get_cpu(), in.op1);
+        int value = cpu->getRegister(in.op1);
         u8 nibble_reg = 0x0f & value;
-        u8 nibble_data = 0x0f & gb->get_cpu()->fetched_data;
-        value += gb->get_cpu()->fetched_data;
-        gb->get_cpu()->carry_flag = value > 0xff;
-        gb->get_cpu()->zero_flag = (value & 0xff) == 0;
-        gb->get_cpu()->half_carry_flag = (u8)(nibble_reg + nibble_data) > 0xf;
-        set_register_value(gb->get_cpu(), in.op1, value & 0xFF);
+        u8 nibble_data = 0x0f & cpu->getFetchedData();
+        value += cpu->getFetchedData();
+        cpu->setFlag(CARRY_FLAG, value > 0xff);
+        cpu->setFlag(ZERO_FLAG, (value & 0xff) == 0);
+        cpu->setFlag(HC_FLAG, (u8)(nibble_reg + nibble_data) > 0xf);
+        cpu->setRegister(in.op1, value & 0xFF);
     }
     else
     {
-        int value = fetch_reg16(gb->get_cpu(), in.op1);
+        int value = cpu->getRegister(in.op1);
         u16 value_before = value;
-        value += gb->get_cpu()->fetched_data;
-        set_register_value(gb->get_cpu(), in.op1, value & 0xFFFF);
-        if (in.op1 == SP)
+        value += cpu->getFetchedData();
+        cpu->setRegister(in.op1, value & 0xFFFF);
+        if (check_register(in.op1, SP))
         {
-            gb->get_cpu()->half_carry_flag =
-                (0xf & value_before) + (0xf & gb->get_cpu()->fetched_data) >
-                0xf;
-            gb->get_cpu()->carry_flag =
-                ((u16)(value_before & 0xff) +
-                 (u16)(gb->get_cpu()->fetched_data & 0xff)) > 0xff;
+            cpu->setFlag(HC_FLAG,
+                         (0xf & value_before) + (0xf & cpu->getFetchedData()) >
+                             0xf);
+            cpu->setFlag(CARRY_FLAG,
+                         ((u16)(value_before & 0xff) +
+                          (u16)(cpu->getFetchedData() & 0xff)) > 0xff);
         }
 
         else
         {
-            gb->get_cpu()->half_carry_flag =
-                (0xfff & value_before) + (0xfff & gb->get_cpu()->fetched_data) >
-                0xfff;
-            gb->get_cpu()->carry_flag = value > 0xffff;
+            cpu->setFlag(HC_FLAG,
+                         (0xfff & value_before) + (0xfff & cpu->getFetchedData()) >
+                             0xfff);
+            cpu->setFlag(CARRY_FLAG, value > 0xffff);
         }
-        if (in.op1 == SP)
-            gb->get_cpu()->zero_flag = false;
+        if (check_register(in.op1, SP))
+            cpu->setFlag(ZERO_FLAG, false);
     }
-    gb->get_cpu()->sub_flag = false; // for all
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setFlag(SUB_FLAG, false); // for all
+    timer->update_timer(in.cycles);
 }
 
-void execute_sub(GB *gb)
+void execute_sub()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    int value = fetch_reg8(gb->get_cpu(), in.op1);
-    value -= gb->get_cpu()->fetched_data;
-    set_register_value(gb->get_cpu(), in.op1, value & 0xFF);
-    gb->get_cpu()->carry_flag = value < 0x0;
-    gb->get_cpu()->zero_flag = value == 0;
-    gb->get_cpu()->half_carry_flag =
-        check_half_carry((u8)value, (u8)gb->get_cpu()->fetched_data);
-    gb->get_cpu()->sub_flag = true; // for all
-    gb->get_timer()->update_timer(in.cycles);
+    int value = cpu->getRegister(in.op1);
+    value -= cpu->getFetchedData();
+    cpu->setRegister(in.op1, value & 0xFF);
+    cpu->setFlag(CARRY_FLAG, value < 0x0);
+    cpu->setFlag(ZERO_FLAG, value == 0);
+    cpu->setFlag(HC_FLAG, ((value & 0x0F) + (cpu->getFetchedData() & 0x0F)) > 0x0F);
+    cpu->setFlag(SUB_FLAG, true); // for all
+    timer->update_timer(in.cycles);
 }
 
-void execute_push(GB *gb)
+void execute_push()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    u16 data = gb->get_cpu()->fetched_data;
-    if (gb->get_cpu()->opcode == 0xF5)
+    u16 data = cpu->getFetchedData();
+    if (cpu->getOpcode() == 0xF5)
     { // push AF
-        u8 flags = gb->get_cpu()->zero_flag << 7 |
-                   gb->get_cpu()->sub_flag << 6 |
-                   gb->get_cpu()->half_carry_flag << 5 |
-                   gb->get_cpu()->carry_flag << 4;
-        data = (gb->get_cpu()->a << 8) | flags;
+        u8 flags = cpu->getFlag(ZERO_FLAG) << 7 |
+                   cpu->getFlag(SUB_FLAG) << 6 |
+                   cpu->getFlag(HC_FLAG) << 5 |
+                   cpu->getFlag(CARRY_FLAG) << 4;
+        data = (cpu->getRegister(A) << 8) | flags;
     }
-    push_stack(gb->get_cpu()->sp, data, gb->get_memory());
-    gb->get_timer()->update_timer(in.cycles);
+    push_stack(cpu->getSP(), data);
+    timer->update_timer(in.cycles);
 }
-void execute_pop(GB *gb)
+void execute_pop()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    u16 value = pop_stack(gb->get_cpu()->sp, gb->get_memory());
-    if (in.op1 == AF)
+    u16 value = pop_stack(cpu->getSP());
+    if (check_register(in.op1, AF))
     {
         u8 nibble = (value & 0x00f0) >> 4;
-        gb->get_cpu()->zero_flag = (nibble & 0b1000);
-        gb->get_cpu()->sub_flag = (nibble & 0b0100);
-        gb->get_cpu()->half_carry_flag = (nibble & 0b0010);
-        gb->get_cpu()->carry_flag = (nibble & 0b0001);
-        set_register_value(gb->get_cpu(), in.op1, value);
+        cpu->setFlag(ZERO_FLAG, (nibble & 0b1000));
+        cpu->setFlag(SUB_FLAG, (nibble & 0b0100));
+        cpu->setFlag(HC_FLAG, (nibble & 0b0010));
+        cpu->setFlag(CARRY_FLAG, (nibble & 0b0001));
+        cpu->setRegister(in.op1, value);
     }
     else
-        set_register_value(gb->get_cpu(), in.op1, value);
+        cpu->setRegister(in.op1, value);
 
-    gb->get_timer()->update_timer(in.cycles);
+    timer->update_timer(in.cycles);
 }
 
-void execute_inc(GB *gb)
+void execute_inc()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    try
+    bool isReg16 = check_register(in.op1, BC) | check_register(in.op1, DE) | check_register(in.op1, HL) | check_register(in.op1, SP);
+
+    if (isReg16)
     {
-        u16 reg_value = fetch_reg16(gb->get_cpu(), in.op1);
-        if (gb->get_cpu()->opcode == 0x34)
+        u16 reg_value = cpu->getRegister(in.op1);
+        if (cpu->getOpcode() == 0x34)
         { // inc [hl]
             // Z 0 H
-            u8 value = read_u8bit_address(reg_value, gb->get_memory());
-            gb->get_cpu()->zero_flag = value == 0xff;
-            gb->get_cpu()->sub_flag = false;
-            gb->get_cpu()->half_carry_flag = (0xf & value) + 1 > 0xf;
-            bus_write(reg_value, value + 1, gb->get_memory());
+            u8 value = read_u8bit_address(reg_value);
+            cpu->setFlag(ZERO_FLAG, value == 0xff);
+            cpu->setFlag(SUB_FLAG, false);
+            cpu->setFlag(HC_FLAG, (0xf & value) + 1 > 0xf);
+            bus_write(reg_value, value + 1);
         }
         else
-            set_register_value(gb->get_cpu(), in.op1, reg_value + 1);
-    }
-    catch (const std::runtime_error &e)
-    {
-        u8 reg_value = fetch_reg8(gb->get_cpu(), in.op1);
-        u8 value = reg_value + 1;
-        set_register_value(gb->get_cpu(), in.op1, value);
-        gb->get_cpu()->sub_flag = false;
-        gb->get_cpu()->zero_flag = value == 0 ? true : false;
-        gb->get_cpu()->half_carry_flag = check_half_carry(reg_value, 1);
-    }
-    gb->get_timer()->update_timer(in.cycles);
-}
-
-void execute_or(GB *gb)
-{
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 r1 = fetch_reg8(gb->get_cpu(), in.op1);
-    u8 r2 = 0;
-    try
-    {
-        r2 = fetch_reg8(gb->get_cpu(), in.op2);
-    }
-    catch (std::runtime_error &e)
-    {
-        r2 = gb->get_cpu()->fetched_data;
-    }
-    r1 = r1 | r2;
-    set_register_value(gb->get_cpu(), in.op1, r1);
-    gb->get_cpu()->zero_flag = r1 == 0;
-    gb->get_cpu()->carry_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_timer()->update_timer(in.cycles);
-}
-
-void execute_rra(GB *gb)
-{
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 old_bit0 = gb->get_cpu()->a & 0x01;
-    // Rotate A right through the carry flag
-    gb->get_cpu()->a =
-        (gb->get_cpu()->a >> 1) | (gb->get_cpu()->carry_flag << 7);
-    // Update the carry flag with the old bit 0 of A
-    gb->get_cpu()->carry_flag = (bool)old_bit0;
-    gb->get_cpu()->zero_flag = false;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_timer()->update_timer(in.cycles);
-}
-
-void execute_rrc(GB *gb)
-{
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 current = get_prefix_operator(gb);
-    u8 old_bit0 = current & 0x01;
-    u8 value = (current >> 1) | (old_bit0 << 7);
-    gb->get_cpu()->carry_flag = (bool)old_bit0;
-    gb->get_cpu()->zero_flag = value == 0;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    set_prefix_operator(gb, in, value);
-    gb->get_timer()->update_timer(in.cycles);
-}
-
-void execute_rlca(GB *gb)
-{
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 old_bit7 = gb->get_cpu()->a & 0x80;
-    // Rotate A right through the carry flag
-    gb->get_cpu()->a = (gb->get_cpu()->a << 1) | (old_bit7 >> 7);
-    // Update the carry flag with the old bit 0 of A
-    gb->get_cpu()->carry_flag = (bool)old_bit7;
-    gb->get_cpu()->zero_flag = false;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_timer()->update_timer(in.cycles);
-}
-
-void execute_rlc(GB *gb)
-{
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 current = get_prefix_operator(gb);
-    u8 old_bit7 = current & 0x80;
-    u8 value = (current << 1) | (old_bit7 >> 7);
-    gb->get_cpu()->carry_flag = (bool)old_bit7;
-    gb->get_cpu()->zero_flag = value == 0;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    set_prefix_operator(gb, in, value);
-    gb->get_timer()->update_timer(in.cycles);
-}
-
-void execute_rla(GB *gb)
-{
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 old_bit7 = gb->get_cpu()->a & 0x80;
-    // Rotate A right through the carry flag
-    gb->get_cpu()->a =
-        (gb->get_cpu()->a << 1) | (gb->get_cpu()->carry_flag ? 0x01 : 0x00);
-    // Update the carry flag with the old bit 0 of A
-    gb->get_cpu()->carry_flag = (bool)old_bit7;
-    gb->get_cpu()->zero_flag = false;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_timer()->update_timer(in.cycles);
-}
-
-void execute_rrca(GB *gb)
-{
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 old_bit0 = gb->get_cpu()->a & 0x01;
-    // Rotate A right through the carry flag
-    gb->get_cpu()->a = (gb->get_cpu()->a >> 1) | (old_bit0 << 7);
-    // Update the carry flag with the old bit 0 of A
-    gb->get_cpu()->carry_flag = (bool)old_bit0;
-    gb->get_cpu()->zero_flag = false;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_timer()->update_timer(in.cycles);
-}
-
-void execute_adc(GB *gb)
-{
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    gb->get_cpu()->sub_flag = false;
-    int value = fetch_reg8(gb->get_cpu(), in.op1);
-    gb->get_cpu()->half_carry_flag =
-        ((value & 0xf) + (gb->get_cpu()->fetched_data & 0xf) +
-         (u8)gb->get_cpu()->carry_flag) > 0xf;
-    value += gb->get_cpu()->fetched_data + (u8)gb->get_cpu()->carry_flag;
-    gb->get_cpu()->zero_flag = (u8)value == 0;
-    gb->get_cpu()->carry_flag = value > 0xff;
-    set_register_value(gb->get_cpu(), in.op1, value & 0xFF);
-    gb->get_timer()->update_timer(in.cycles);
-}
-
-void execute_and(GB *gb)
-{
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 value = fetch_reg8(gb->get_cpu(), in.op1);
-    value &= gb->get_cpu()->fetched_data;
-    set_register_value(gb->get_cpu(), in.op1, value);
-    gb->get_cpu()->zero_flag = value == 0 ? true : false;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = true;
-    gb->get_cpu()->carry_flag = false;
-    gb->get_timer()->update_timer(in.cycles);
-}
-
-void execute_daa(GB *gb)
-{
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 adj = 0;
-    if (gb->get_cpu()->sub_flag)
-    {
-        if (gb->get_cpu()->half_carry_flag)
-            adj += 0x6;
-        if (gb->get_cpu()->carry_flag)
-            adj += 0x60;
-        gb->get_cpu()->a -= adj;
+            cpu->setRegister(in.op1, reg_value + 1);
     }
     else
     {
-        if (gb->get_cpu()->half_carry_flag || ((gb->get_cpu()->a & 0xF) > 9))
+        u8 reg_value = cpu->getRegister(in.op1);
+        u8 value = reg_value + 1;
+        cpu->setRegister(in.op1, value);
+        cpu->setFlag(SUB_FLAG, false);
+        cpu->setFlag(ZERO_FLAG, value == 0 ? true : false);
+        cpu->setFlag(HC_FLAG, ((reg_value & 0x0F) + 0x1) > 0x0F);
+    }
+    timer->update_timer(in.cycles);
+}
+
+void execute_or()
+{
+    InstructionSet in = cpu->getInstruction();
+
+    u8 r1 = cpu->getRegister(in.op1);
+    u8 r2 = 0;
+    bool isHL = check_register(in.op2, HL);
+    bool isN8 = check_operand(in.op2, N8);
+
+    if (isHL || isN8)
+        r2 = cpu->getFetchedData();
+    else
+        r2 = cpu->getRegister(in.op2);
+
+    r1 = r1 | r2;
+    cpu->setRegister(in.op1, r1);
+    cpu->setFlag(ZERO_FLAG, r1 == 0);
+    cpu->setFlag(CARRY_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    cpu->setFlag(SUB_FLAG, false);
+    timer->update_timer(in.cycles);
+}
+
+void execute_rra()
+{
+    InstructionSet in = cpu->getInstruction();
+    u8 a = cpu->getRegister(A);
+    u8 old_bit0 = a & 0x01;
+    // Rotate A right through the carry flag
+    cpu->setRegister(A, (a >> 1) | (cpu->getFlag(CARRY_FLAG) << 7));
+    // Update the carry flag with the old bit 0 of A
+    cpu->setFlag(CARRY_FLAG, (bool)old_bit0);
+    cpu->setFlag(ZERO_FLAG, false);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    timer->update_timer(in.cycles);
+}
+
+void execute_rrc()
+{
+    InstructionSet in = cpu->getInstruction();
+
+    u8 current = get_prefix_operator();
+    u8 old_bit0 = current & 0x01;
+    u8 value = (current >> 1) | (old_bit0 << 7);
+    cpu->setFlag(CARRY_FLAG, (bool)old_bit0);
+    cpu->setFlag(ZERO_FLAG, value == 0);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    set_prefix_operator(in, value);
+    timer->update_timer(in.cycles);
+}
+
+void execute_rlca()
+{
+    InstructionSet in = cpu->getInstruction();
+
+    u8 old_bit7 = cpu->getRegister(A) & 0x80;
+    // Rotate A right through the carry flag
+    cpu->setRegister(A, (cpu->getRegister(A) << 1) | (old_bit7 >> 7));
+    // Update the carry flag with the old bit 0 of A
+    cpu->setFlag(CARRY_FLAG, (bool)old_bit7);
+    cpu->setFlag(ZERO_FLAG, false);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    timer->update_timer(in.cycles);
+}
+
+void execute_rlc()
+{
+    InstructionSet in = cpu->getInstruction();
+
+    u8 current = get_prefix_operator();
+    u8 old_bit7 = current & 0x80;
+    u8 value = (current << 1) | (old_bit7 >> 7);
+    cpu->setFlag(CARRY_FLAG, (bool)old_bit7);
+    cpu->setFlag(ZERO_FLAG, value == 0);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    set_prefix_operator(in, value);
+    timer->update_timer(in.cycles);
+}
+
+void execute_rla()
+{
+    InstructionSet in = cpu->getInstruction();
+
+    u8 old_bit7 = cpu->getRegister(A) & 0x80;
+    u8 a = cpu->getRegister(A);
+    a = (a << 1) | (cpu->getFlag(CARRY_FLAG) ? 0x01 : 0x00);
+    // Rotate A right through the carry flag
+    cpu->setRegister(A, a);
+    // Update the carry flag with the old bit 0 of A
+    cpu->setFlag(CARRY_FLAG, (bool)old_bit7);
+    cpu->setFlag(ZERO_FLAG, false);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    timer->update_timer(in.cycles);
+}
+
+void execute_rrca()
+{
+    InstructionSet in = cpu->getInstruction();
+
+    u8 old_bit0 = cpu->getRegister(A) & 0x01;
+    u8 a = (cpu->getRegister(A) >> 1) | (old_bit0 << 7);
+    // Rotate A right through the carry flag
+    cpu->setRegister(A, a);
+    // Update the carry flag with the old bit 0 of A
+    cpu->setFlag(CARRY_FLAG, (bool)old_bit0);
+    cpu->setFlag(ZERO_FLAG, false);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    timer->update_timer(in.cycles);
+}
+
+void execute_adc()
+{
+    InstructionSet in = cpu->getInstruction();
+
+    cpu->setFlag(SUB_FLAG, false);
+    int value = cpu->getRegister(in.op1);
+    cpu->setFlag(HC_FLAG,
+                 ((value & 0xf) + (cpu->getFetchedData() & 0xf) +
+                  (u8)cpu->getFlag(CARRY_FLAG)) > 0xf);
+    value += cpu->getFetchedData() + (u8)cpu->getFlag(CARRY_FLAG);
+    cpu->setFlag(ZERO_FLAG, (u8)value == 0);
+    cpu->setFlag(CARRY_FLAG, value > 0xff);
+    cpu->setRegister(in.op1, value & 0xFF);
+    timer->update_timer(in.cycles);
+}
+
+void execute_and()
+{
+    InstructionSet in = cpu->getInstruction();
+
+    u8 value = cpu->getRegister(in.op1);
+    value &= cpu->getFetchedData();
+    cpu->setRegister(in.op1, value);
+    cpu->setFlag(ZERO_FLAG, value == 0 ? true : false);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, true);
+    cpu->setFlag(CARRY_FLAG, false);
+    timer->update_timer(in.cycles);
+}
+
+void execute_daa()
+{
+    InstructionSet in = cpu->getInstruction();
+
+    u8 adj = 0;
+    if (cpu->getFlag(SUB_FLAG))
+    {
+        if (cpu->getFlag(HC_FLAG))
             adj += 0x6;
-        if (gb->get_cpu()->carry_flag || gb->get_cpu()->a > 0x99)
+        if (cpu->getFlag(CARRY_FLAG))
+            adj += 0x60;
+        u8 a = cpu->getRegister(A);
+        cpu->setRegister(A, a - adj);
+    }
+    else
+    {
+        if (cpu->getFlag(HC_FLAG) || ((cpu->getRegister(A) & 0xF) > 9))
+            adj += 0x6;
+        if (cpu->getFlag(CARRY_FLAG) || cpu->getRegister(A) > 0x99)
         {
             adj += 0x60;
-            gb->get_cpu()->carry_flag = true;
+            cpu->setFlag(CARRY_FLAG, true);
         }
-        gb->get_cpu()->a += adj;
+        u8 a = cpu->getRegister(A);
+        cpu->setRegister(A, a + adj);
     }
 
-    gb->get_cpu()->zero_flag = gb->get_cpu()->a == 0;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setFlag(ZERO_FLAG, cpu->getRegister(A) == 0);
+    cpu->setFlag(HC_FLAG, false);
+    timer->update_timer(in.cycles);
 }
 
-void execute_prefix_srl(GB *gb)
+void execute_prefix_srl()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    u8 op1 = get_prefix_operator(gb);
+    u8 op1 = get_prefix_operator();
     u8 bit0 = op1 & 0x1;
     op1 = op1 >> 1;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_cpu()->carry_flag = (bool)bit0;
-    gb->get_cpu()->zero_flag = op1 == 0;
-    set_prefix_operator(gb, in, op1);
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    cpu->setFlag(CARRY_FLAG, (bool)bit0);
+    cpu->setFlag(ZERO_FLAG, op1 == 0);
+    set_prefix_operator(in, op1);
+    timer->update_timer(in.cycles);
 }
 
-void execute_prefix_rr(GB *gb)
+void execute_prefix_rr()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    u8 op1 = get_prefix_operator(gb);
+    u8 op1 = get_prefix_operator();
     u8 bit0 = op1 & 0x1;
     op1 = op1 >> 1;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    op1 |= (gb->get_cpu()->carry_flag) << 7;
-    gb->get_cpu()->carry_flag = (bool)bit0;
-    gb->get_cpu()->zero_flag = op1 == 0;
-    set_prefix_operator(gb, in, op1);
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    op1 |= (cpu->getFlag(CARRY_FLAG)) << 7;
+    cpu->setFlag(CARRY_FLAG, (bool)bit0);
+    cpu->setFlag(ZERO_FLAG, op1 == 0);
+    set_prefix_operator(in, op1);
+    timer->update_timer(in.cycles);
 }
 
-void execute_prefix_rl(GB *gb)
+void execute_prefix_rl()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    u8 current = get_prefix_operator(gb);
+    u8 current = get_prefix_operator();
     u8 bit7 = current & 0x80;
-    u8 value = (current << 1) | (gb->get_cpu()->carry_flag ? 1 : 0);
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_cpu()->carry_flag = (bool)bit7;
-    gb->get_cpu()->zero_flag = value == 0;
-    set_prefix_operator(gb, in, value);
-    gb->get_timer()->update_timer(in.cycles);
+    u8 value = (current << 1) | (cpu->getFlag(CARRY_FLAG) ? 1 : 0);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    cpu->setFlag(CARRY_FLAG, (bool)bit7);
+    cpu->setFlag(ZERO_FLAG, value == 0);
+    set_prefix_operator(in, value);
+    timer->update_timer(in.cycles);
 }
 
-void execute_sbc(GB *gb)
+void execute_sbc()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    gb->get_cpu()->sub_flag = true;
-    u16 dec = (gb->get_cpu()->fetched_data + (u8)gb->get_cpu()->carry_flag);
-    gb->get_cpu()->half_carry_flag =
-        (gb->get_cpu()->a & 0x0f) <
-        ((gb->get_cpu()->fetched_data & 0xf) + (u8)gb->get_cpu()->carry_flag);
-
-    gb->get_cpu()->carry_flag = dec > gb->get_cpu()->a;
-    gb->get_cpu()->a -= dec;
-    gb->get_cpu()->zero_flag = gb->get_cpu()->a == 0;
-    gb->get_timer()->update_timer(in.cycles);
+    InstructionSet in = cpu->getInstruction();
+    u8 a = cpu->getRegister(A);
+    cpu->setFlag(SUB_FLAG, true);
+    u16 dec = (cpu->getFetchedData() + (u8)cpu->getFlag(CARRY_FLAG));
+    bool hc_flag = (a & 0x0f) < ((cpu->getFetchedData() & 0xf) + (u8)cpu->getFlag(CARRY_FLAG));
+    cpu->setFlag(HC_FLAG, hc_flag);
+    cpu->setFlag(CARRY_FLAG, dec > a);
+    cpu->setRegister(A, a - dec);
+    cpu->setFlag(ZERO_FLAG, a == 0);
+    timer->update_timer(in.cycles);
 }
 
-void execute_rst(GB *gb)
+void execute_rst()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    push_stack(gb->get_cpu()->sp, gb->get_cpu()->pc, gb->get_memory());
-    gb->get_cpu()->pc = gb->get_cpu()->fetched_data;
-    gb->get_timer()->update_timer(in.cycles);
+    push_stack(cpu->getSP(), cpu->getPC());
+    cpu->setPC(cpu->getFetchedData());
+    timer->update_timer(in.cycles);
 }
 
-void execute_cpl(GB *gb)
+void execute_cpl()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    gb->get_cpu()->sub_flag = true;
-    gb->get_cpu()->half_carry_flag = true;
-    gb->get_cpu()->a = ~gb->get_cpu()->a;
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setFlag(SUB_FLAG, true);
+    cpu->setFlag(HC_FLAG, true);
+    cpu->setRegister(A, ~cpu->getRegister(A));
+    timer->update_timer(in.cycles);
 }
 
-void execute_scf(GB *gb)
+void execute_scf()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_cpu()->carry_flag = true;
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    cpu->setFlag(CARRY_FLAG, true);
+    timer->update_timer(in.cycles);
 }
 
-void execute_ccf(GB *gb)
+void execute_ccf()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
+    InstructionSet in = cpu->getInstruction();
 
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_cpu()->carry_flag = not gb->get_cpu()->carry_flag;
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    cpu->setFlag(CARRY_FLAG, not cpu->getFlag(CARRY_FLAG));
+    timer->update_timer(in.cycles);
 }
 
-void execute_prefix_bit(GB *gb)
+void execute_prefix_bit()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 bit_select = u8(in.op1) - u8(BIT_0);
-    u8 value = get_prefix_operator(gb);
-    gb->get_cpu()->zero_flag = (value & (1 << bit_select)) == 0;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = true;
-    gb->get_timer()->update_timer(in.cycles);
+    InstructionSet in = cpu->getInstruction();
+    auto op1 = std::get_if<operand_types>(&in.op1);
+    u8 bit_select = u8(*op1) - u8(BIT_0);
+    u8 value = get_prefix_operator();
+    cpu->setFlag(ZERO_FLAG, (value & (1 << bit_select)) == 0);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, true);
+    timer->update_timer(in.cycles);
 }
 
-void execute_prefix_set(GB *gb)
+void execute_prefix_set()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 bit_select = u8(in.op1) - u8(BIT_0);
-    u8 value = get_prefix_operator(gb);
+    InstructionSet in = cpu->getInstruction();
+    auto op1 = std::get_if<operand_types>(&in.op1);
+    u8 bit_select = u8(*op1) - u8(BIT_0);
+    u8 value = get_prefix_operator();
     value = (value | (1 << bit_select));
-    set_prefix_operator(gb, in, value);
-    gb->get_timer()->update_timer(in.cycles);
+    set_prefix_operator(in, value);
+    timer->update_timer(in.cycles);
 }
 
-void execute_prefix_res(GB *gb)
+void execute_prefix_res()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
-
-    u8 bit_select = u8(in.op1) - u8(BIT_0);
-    u8 value = get_prefix_operator(gb);
+    InstructionSet in = cpu->getInstruction();
+    auto op1 = std::get_if<operand_types>(&in.op1);
+    u8 bit_select = u8(*op1) - u8(BIT_0);
+    u8 value = get_prefix_operator();
     value = (value & ~(1 << bit_select));
-    set_prefix_operator(gb, in, value);
-    gb->get_timer()->update_timer(in.cycles);
+    set_prefix_operator(in, value);
+    timer->update_timer(in.cycles);
 }
 
-void execute_prefix_swap(GB *gb)
+void execute_prefix_swap()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
-    u8 current = get_prefix_operator(gb);
+    InstructionSet in = cpu->getInstruction();
+    u8 current = get_prefix_operator();
     u8 value = ((0xf0 & current) >> 4) | ((0x0f & current) << 4);
-    gb->get_cpu()->zero_flag = value == 0;
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_cpu()->carry_flag = false;
-    set_prefix_operator(gb, in, value);
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setFlag(ZERO_FLAG, value == 0);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    cpu->setFlag(CARRY_FLAG, false);
+    set_prefix_operator(in, value);
+    timer->update_timer(in.cycles);
 }
 
-void execute_prefix_sla(GB *gb)
+void execute_prefix_sla()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
-    u8 current = get_prefix_operator(gb);
+    InstructionSet in = cpu->getInstruction();
+    u8 current = get_prefix_operator();
     u8 bit7 = current & 0x80;
     u8 value = (current << 1);
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_cpu()->carry_flag = (bool)bit7;
-    gb->get_cpu()->zero_flag = value == 0;
-    set_prefix_operator(gb, in, value);
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    cpu->setFlag(CARRY_FLAG, (bool)bit7);
+    cpu->setFlag(ZERO_FLAG, value == 0);
+    set_prefix_operator(in, value);
+    timer->update_timer(in.cycles);
 }
 
-void execute_prefix_sra(GB *gb)
+void execute_prefix_sra()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
-    u8 op1 = get_prefix_operator(gb);
+    InstructionSet in = cpu->getInstruction();
+    u8 op1 = get_prefix_operator();
     u8 bit7 = op1 & 0x80;
     u8 bit0 = op1 & 0x01;
     op1 = bit7 | (op1 >> 1);
-    gb->get_cpu()->sub_flag = false;
-    gb->get_cpu()->half_carry_flag = false;
-    gb->get_cpu()->carry_flag = (bool)bit0;
-    gb->get_cpu()->zero_flag = op1 == 0;
-    set_prefix_operator(gb, in, op1);
-    gb->get_timer()->update_timer(in.cycles);
+    cpu->setFlag(SUB_FLAG, false);
+    cpu->setFlag(HC_FLAG, false);
+    cpu->setFlag(CARRY_FLAG, (bool)bit0);
+    cpu->setFlag(ZERO_FLAG, op1 == 0);
+    set_prefix_operator(in, op1);
+    timer->update_timer(in.cycles);
 }
 
-void execute_halt(GB *gb)
+void execute_halt()
 {
-    InstructionSet in = gb->get_cpu()->current_instruction;
-    gb->get_timer()->update_timer(in.cycles);
-
-    if (*gb->get_interruption()->ime_flag)
+    InstructionSet in = cpu->getInstruction();
+    if (cpu->getIME())
     {
-        // do stuff
+        // IME is enabled: normal halt behavior
+        cpu->setHalt(true);
+        printf("HALT mode: ON\n");
     }
     else
     {
-        // ime flag disabled
-        // case1
-        bool case_type =
-            *gb->get_interruption()->ie & *gb->get_interruption()->iflag & 0x1f;
-        if (!case_type)
+        // here, IME is disabled
+
+        /*
+        (IE & IF & 1Fh) = 0
+        HALT mode is entered. It works like the IME = 1 case,
+        but when a IF flag is set and the corresponding IE flag is also set,
+        the CPU doesn't jump to the interrupt vector, it just continues executing instructions.
+        The IF flags aren't cleared.
+        */
+        // interrupt_flags & enabled_interrupts & 0x1F != 0
+        u8 if_reg = *interruption->iflag;
+        u8 ie_reg = *interruption->ie;
+        bool halt = (if_reg & ie_reg & 0x1F) == 0;
+
+        if (halt)
         {
-            // case 1: enters halt mode
-            gb->get_cpu()->halt = true;
-            printf("halt mode: ON\n");
+            // halt mode on
+            cpu->setHalt(true);
+            printf("HALT: ON\n");
         }
         else
         {
-            // case 2
-            printf("halt BUG\n");
+            // HALT BUG
+            printf("HALT BUG\n");
         }
     }
+    // printf("PC= %.4x\n", cpu->old_pc);
+    // printf("A=%.2x, F=%.2x\n", cpu->a, cpu->f);
+    // printf("B=%.2x, C=%.2x\n", cpu->b, cpu->c);
+    // printf("D=%.2x, E=%.2x\n", cpu->d, cpu->e);
+    // printf("H=%.2x, L=%.2x\n", cpu->h, cpu->l);
+
+    timer->update_timer(in.cycles);
 }
 
 ProcessorFunc processor[0x100] = {[NOP] = execute_none,

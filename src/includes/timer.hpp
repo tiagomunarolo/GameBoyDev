@@ -15,3 +15,5 @@ public:
   int check_tima();
   void update_timer(int tcycles);
 };
+
+extern TimerHanlder *timer;
