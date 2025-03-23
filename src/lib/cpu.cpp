@@ -138,14 +138,12 @@ void CPU::execute_step()
 void CPU::run()
 {
   this->running = true;
+  int loop_found = 0;
 
   try
   {
     while (this->running)
     {
-      // sleep
-      // std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(1));
-
       // CPU cycle
       while (this->isHalted() && this->running && !timer->tima_overflow) // sleep for a while
         timer->update_timer(1);
@@ -158,6 +156,12 @@ void CPU::run()
       this->fetch_data();           // fetch required data from memory
       this->execute_step();         // process operation
       this->check_timer_overflow(); // check if timer overflow
+      if (this->getOldPC() == this->getPC())
+      {
+        loop_found++;
+        if (loop_found >= 5)
+          break;
+      }
     }
     cout << "CPU thread finished gracefully" << endl;
   }

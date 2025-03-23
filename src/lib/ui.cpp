@@ -187,10 +187,12 @@ void UI::update_window()
 void UI::update()
 {
     if (this->ppu->lcd_is_on())
+    {
         this->update_window();
 #ifdef DEBUG_UI
-    this->update_dbg_window();
+        this->update_dbg_window();
 #endif
+    }
 };
 
 UI::UI(Memory *mem, PixelProcessingUnit *ppu)

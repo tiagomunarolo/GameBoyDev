@@ -57,31 +57,26 @@ void InterruptionContoller::set_interruption(InterruptionType int_type)
     {
     case VBlank:
     {
-        *this->ie = *this->ie | 0b00001;
         *this->iflag = *this->iflag | 0b00001;
         break;
     }
     case LCD:
     {
-        *this->ie = *this->ie | 0b00010;
         *this->iflag = *this->iflag | 0b00010;
         break;
     }
     case Timer:
     {
-        *this->ie = *this->ie | 0b00100;
         *this->iflag = *this->iflag | 0b00100;
         break;
     }
     case Serial:
     {
-        *this->ie = *this->ie | 0b01000;
         *this->iflag = *this->iflag | 0b01000;
         break;
     }
     case Joypad:
     {
-        *this->ie = *this->ie | 0b1000;
         *this->iflag = *this->iflag | 0b10000;
         break;
     }

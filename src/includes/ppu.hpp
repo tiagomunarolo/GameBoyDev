@@ -37,6 +37,7 @@ private:
     u8 *bgp;
     u8 *obp0;
     u8 *obp01;
+    bool running = false;
 
 public:
     // Each tile occupies 16 bytes, where each line is represented by 2 bytes:
@@ -53,6 +54,8 @@ public:
     ObjSize get_obj_size();
     u8 get_scx();
     u8 get_scy();
+    void run();
+    void stop();
 };
 
 extern PixelProcessingUnit *ppu;

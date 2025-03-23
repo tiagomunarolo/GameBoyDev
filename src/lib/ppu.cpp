@@ -1,9 +1,13 @@
 #include "ppu.hpp"
+#include <thread>
+
+using namespace std;
 
 PixelProcessingUnit::PixelProcessingUnit(Memory *mem)
 {
     // LCD
     this->mem = mem;
+    this->running = true;
     mem->io[0x40] = 0x91;
     mem->io[0x41] = 0x81;
     mem->io[0x42] = 0x00;
@@ -122,6 +126,22 @@ u8 PixelProcessingUnit::get_scx()
 u8 PixelProcessingUnit::get_scy()
 {
     return *this->scy;
+}
+
+void PixelProcessingUnit::run()
+{
+
+    cout << "Running PPU" << endl;
+    while (this->running)
+    {
+        std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(10));
+    }
+    cout << "Stopping PPU" << endl;
+}
+
+void PixelProcessingUnit::stop()
+{
+    this->running = false;
 }
 
 PixelProcessingUnit *ppu = nullptr;

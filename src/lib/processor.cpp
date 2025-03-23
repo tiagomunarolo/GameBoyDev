@@ -92,19 +92,30 @@ void execute_call()
     InstructionSet in = cpu->getInstruction();
 
     // if action not taken, 12 tick cycles
-    timer->update_timer(12);
     if (check_operand(in.op1, NZ) && cpu->getFlag(ZERO_FLAG))
+    {
+        timer->update_timer(12);
         return;
+    }
     if (check_operand(in.op1, Z) && !cpu->getFlag(ZERO_FLAG))
+    {
+        timer->update_timer(12);
         return;
+    }
     if (check_register(in.op1, C) && !cpu->getFlag(CARRY_FLAG))
+    {
+        timer->update_timer(12);
         return;
+    }
     if (check_operand(in.op1, NC) && cpu->getFlag(CARRY_FLAG))
+    {
+        timer->update_timer(12);
         return;
+    }
     push_stack(cpu->getSP(), cpu->getPC());
     cpu->setPC(cpu->getFetchedData());
     // if action taken, additional 12 tick cycles (3 m cycles)
-    timer->update_timer(12);
+    timer->update_timer(24);
 }
 
 void execute_jump()
@@ -152,25 +163,48 @@ void execute_jump()
 void execute_ret()
 {
     InstructionSet in = cpu->getInstruction();
-
-    timer->update_timer(8); // 2m cycles if not executed
+    int cycles = 8;
 
     if (check_operand(in.op1, NZ) && cpu->getFlag(ZERO_FLAG))
+    {
+        timer->update_timer(cycles);
         return;
+    }
     else if (check_operand(in.op1, Z) && !cpu->getFlag(ZERO_FLAG))
-        return;
-    else if (check_register(in.op1, C) && !cpu->getFlag(CARRY_FLAG))
-        return;
-    else if (check_operand(in.op1, NC) && cpu->getFlag(CARRY_FLAG))
-        return;
-    else if (in.mnemonic == RETI)
-        cpu->setIME(true);
+    {
+        timer->update_timer(cycles);
 
-    timer->update_timer(8); // 2m additional cycles if executed
-    if (check_operand(in.op1, NZ) || check_operand(in.op1, Z) || check_register(in.op1, C) || check_operand(in.op1, NC))
-        timer->update_timer(4);
+        return;
+    }
+    else if (check_register(in.op1, C) && !cpu->getFlag(CARRY_FLAG))
+    {
+        timer->update_timer(cycles);
+
+        return;
+    }
+    else if (check_operand(in.op1, NC) && cpu->getFlag(CARRY_FLAG))
+    {
+        timer->update_timer(cycles);
+
+        return;
+    }
+    else if (in.mnemonic == RETI)
+    {
+        cycles += 8;
+        cpu->setIME(true);
+    }
+    else if (in.mnemonic == RET && check_operand(in.op1, NULL_OP))
+    {
+        cycles += 8;
+    }
+
+    else
+    {
+        cycles += 12; // if action taken, additional 12 tick cycles
+    }
 
     cpu->setPC(pop_stack(cpu->getSP()));
+    timer->update_timer(cycles);
 }
 
 void execute_di()
@@ -256,33 +290,33 @@ void execute_dec()
 void execute_jr()
 {
     InstructionSet in = cpu->getInstruction();
-
-    timer->update_timer(8); // 2m cycles if not executed
+    int cpu_cycles = 8;
     if (check_operand(in.op1, E8))
     {
         cpu->setPC(cpu->getPC() + cpu->getFetchedData());
-        timer->update_timer(4);
+        cpu_cycles = 12;
     }
     else if (check_operand(in.op1, NZ) && !cpu->getFlag(ZERO_FLAG))
     {
         cpu->setPC(cpu->getPC() + cpu->getFetchedData());
-        timer->update_timer(4);
+        cpu_cycles = 12;
     }
     else if (check_operand(in.op1, Z) && cpu->getFlag(ZERO_FLAG))
     {
         cpu->setPC(cpu->getPC() + cpu->getFetchedData());
-        timer->update_timer(4);
+        cpu_cycles = 12;
     }
     else if (check_register(in.op1, C) && cpu->getFlag(CARRY_FLAG))
     {
         cpu->setPC(cpu->getPC() + cpu->getFetchedData());
-        timer->update_timer(4);
+        cpu_cycles = 12;
     }
     else if (check_operand(in.op1, NC) && !cpu->getFlag(CARRY_FLAG))
     {
         cpu->setPC(cpu->getPC() + cpu->getFetchedData());
-        timer->update_timer(4);
+        cpu_cycles = 12;
     }
+    timer->update_timer(cpu_cycles); // 2m cycles if not executed
 }
 void execute_add()
 {
@@ -803,12 +837,6 @@ void execute_halt()
             printf("HALT BUG\n");
         }
     }
-    // printf("PC= %.4x\n", cpu->old_pc);
-    // printf("A=%.2x, F=%.2x\n", cpu->a, cpu->f);
-    // printf("B=%.2x, C=%.2x\n", cpu->b, cpu->c);
-    // printf("D=%.2x, E=%.2x\n", cpu->d, cpu->e);
-    // printf("H=%.2x, L=%.2x\n", cpu->h, cpu->l);
-
     timer->update_timer(in.cycles);
 }
 

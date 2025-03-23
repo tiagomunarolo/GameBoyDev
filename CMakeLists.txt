@@ -20,7 +20,7 @@ find_package(SDL2_ttf REQUIRED)
 find_package(SDL2 REQUIRED)
 
 # set debug flags
-set(DEBUG_FLAGS "-g -O0 -DDEBUG -DDEBUG_UI -Wall -Wextra")
+set(DEBUG_FLAGS "-g -O0 -DDEBUG -Wall -Wextra")
 # Enable debug flags for GCC/Clang
 set(CMAKE_CXX_FLAGS_DEBUG ${DEBUG_FLAGS})
 set(CMAKE_C_FLAGS_DEBUG ${DEBUG_FLAGS})
@@ -32,6 +32,9 @@ include_directories(${SDL2_INCLUDE_DIRS})
 
 # add compile definitions for UI
 add_compile_definitions(UI_ENABLED)
+
+# add compile definitions for CPU
+# add_compile_definitions(DEBUG_CPU)
 
 # Add main executable
 add_executable(GameBoyDevEmulator ${SRC_FILES})

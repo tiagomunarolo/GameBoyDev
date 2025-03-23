@@ -5,11 +5,15 @@
 #include "interruption.hpp"
 
 int run = 1;
+#ifdef DEBUG_FILE
 const char *file = "/Users/tiago_m2/Desktop/out.log";
 std::ofstream debug_file;
+#endif
 
 void debug_memory_and_registers()
 {
+
+#ifdef DEBUG_FILE
        if (run == 1 && std::filesystem::exists(file))
        {
               std::filesystem::remove(file); // Delete file
@@ -20,6 +24,7 @@ void debug_memory_and_registers()
               debug_file.open(file, std::ios::app);
        }
 
+#endif
        u16 old_pc = cpu->getOldPC();
        if (old_pc == 0x0050) // timer interruption
               return;
@@ -58,6 +63,8 @@ void debug_memory_and_registers()
        printf("INSTRUCTION DETAILS [%s]:  Size=%d  OP1=%s, OP2=%s\n", mnemonic_str,
               instr.bytes, op1_str, op2_str);
 
+#ifdef DEBUG_FILE
+
        debug_file << std::uppercase;
        debug_file << "A:" << std::hex << std::setw(2) << std::setfill('0')
                   << int(cpu->getRegister(A));
@@ -85,4 +92,5 @@ void debug_memory_and_registers()
        debug_file << std::hex << std::setw(2) << std::setfill('0') << int(b2) << ",";
        debug_file << std::hex << std::setw(2) << std::setfill('0') << int(b3)
                   << std::endl;
+#endif
 }

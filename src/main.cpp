@@ -14,6 +14,9 @@ void main_loop()
     // create thread for CPU pipeline
     std::thread cpu_thread(&CPU::run, cpu);
     cpu_thread.detach();
+    // create thread for PPU pipeline
+    //std::thread ppu_thread(&PixelProcessingUnit::run, ppu);
+    //ppu_thread.detach();
 
 #ifdef UI_ENABLED
     while (ui->running)
@@ -24,6 +27,7 @@ void main_loop()
     }
     ui->quit();
     cpu->stop();
+    // ppu->stop();
 #endif
 }
 
@@ -37,9 +41,9 @@ int main(int argc, const char *argv[])
         // enter main loop
         main_loop();
     }
-    catch (std::runtime_error &e)
+    catch (std::exception &e)
     {
-        cout << "ERROR EXECUTING OPCODE: " << std::hex
+        cout << e.what() << " Opcode: " << std::hex
              << int(gb->get_cpu()->getOpcode()) << endl;
     }
     return 0;

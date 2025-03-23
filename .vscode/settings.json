@@ -60,5 +60,8 @@
         "version": "cpp"
     },
     "editor.defaultFormatter": "ms-vscode.cpptools",
-    "notebook.defaultFormatter": "ms-vscode.cpptools"
+    "notebook.defaultFormatter": "ms-vscode.cpptools",
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    }
 }
