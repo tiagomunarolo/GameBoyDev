@@ -107,8 +107,6 @@ void update_pixels(SDL_Surface *surface, u8 high_byte, u8 low_byte, int x, int y
 void display_tile(SDL_Surface *surface, u16 current_tile, int x, int y, Memory *mem)
 {
 
-    SDL_Rect rc;
-
     // tile is 8x8 => uses 16 bytes
     for (int tile_y = 0; tile_y < 16; tile_y += 2)
     {
@@ -160,7 +158,7 @@ void UI::update_window()
 
     // bg tile map is 32x32
     BgAddress bg = this->ppu->get_bg_tile_map();
-    TileMap tileMap = this->ppu->get_tile_range();
+    // TileMap tileMap = this->ppu->get_tile_range();
     int scx = this->ppu->get_scx();
     int scy = this->ppu->get_scy();
     int xDraw = 0;
@@ -213,9 +211,6 @@ void UI::check_event()
 void UI::quit()
 {
     this->running = false;
-    // destroy font
-    if (this->font)
-        TTF_CloseFont(this->font);
     // destroy textures
     if (this->texture)
         SDL_DestroyTexture(this->texture);

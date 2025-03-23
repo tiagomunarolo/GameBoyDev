@@ -228,7 +228,7 @@ void execute_dec()
     else
     {
         cpu->setFlag(SUB_FLAG, 1);
-        bool isReg16 = check_register(in.op1, BC) | check_register(in.op1, DE) | check_register(in.op1, HL) | check_register(in.op1, SP);
+        bool isReg16 = check_register(in.op1, BC) || check_register(in.op1, DE) || check_register(in.op1, HL) || check_register(in.op1, SP);
 
         if (isReg16)
         {
@@ -384,7 +384,7 @@ void execute_inc()
 {
     InstructionSet in = cpu->getInstruction();
 
-    bool isReg16 = check_register(in.op1, BC) | check_register(in.op1, DE) | check_register(in.op1, HL) | check_register(in.op1, SP);
+    bool isReg16 = check_register(in.op1, BC) || check_register(in.op1, DE) || check_register(in.op1, HL) || check_register(in.op1, SP);
 
     if (isReg16)
     {
@@ -646,8 +646,8 @@ void execute_sbc()
     bool hc_flag = (a & 0x0f) < ((cpu->getFetchedData() & 0xf) + (u8)cpu->getFlag(CARRY_FLAG));
     cpu->setFlag(HC_FLAG, hc_flag);
     cpu->setFlag(CARRY_FLAG, dec > a);
+    cpu->setFlag(ZERO_FLAG, (u8)(a - dec) == 0);
     cpu->setRegister(A, a - dec);
-    cpu->setFlag(ZERO_FLAG, a == 0);
     timer->update_timer(in.cycles);
 }
 

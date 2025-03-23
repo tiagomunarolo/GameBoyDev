@@ -150,6 +150,7 @@ void CPU::run()
       while (this->isHalted() && this->running && !timer->tima_overflow) // sleep for a while
         timer->update_timer(1);
 
+      this->setHalt(false);
       this->fetch_instruction(); // fetch next instrction
 #ifdef DEBUG_CPU
       debug_memory_and_registers();

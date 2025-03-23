@@ -14,8 +14,8 @@ class UI
 {
 private:
     const int w = SCREEN_WIDTH_DEFAULT;
-    const int h = SCREEN_HEIGHT_DEFAULT;
-    // windows
+    // const int h = SCREEN_HEIGHT_DEFAULT;
+    //  windows
     SDL_Window *window;
     SDL_Window *debug_window;
     // renderer
@@ -23,13 +23,9 @@ private:
     SDL_Renderer *debug_renderer;
     // surface
     SDL_Surface *screen;
-    SDL_Surface *debug_screen;
     // texture
     SDL_Texture *texture;
     SDL_Texture *debug_texture;
-    // color and fonts
-    TTF_Font *font;
-    SDL_Color color;
     Memory *mem;
     PixelProcessingUnit *ppu;
     void update_window();
