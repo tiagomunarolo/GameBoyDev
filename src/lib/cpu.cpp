@@ -15,9 +15,9 @@
 using namespace std;
 
 CPU::CPU(Memory *mem)
-    : pc(0x0100), sp(0xFFFE), a(0x01), b(0x00), c(0x13), d(0x00), e(0xD8),
-      f(0xB0), h(0x01), l(0x4D), opcode(0), fetched_data(0),
-      halt(false), memory(mem), ime(false) {};
+    : a(0x01), b(0x00), c(0x13), d(0x00), e(0xD8),
+      f(0xB0), h(0x01), l(0x4D), sp(0xFFFE), pc(0x0100), ime(false), opcode(0), fetched_data(0),
+      halt(false), memory(mem) {};
 
 // Determines the type of instruction being executed
 void CPU::set_instruction_type()

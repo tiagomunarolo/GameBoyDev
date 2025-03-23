@@ -20,7 +20,7 @@ find_package(SDL2_ttf REQUIRED)
 find_package(SDL2 REQUIRED)
 
 # set debug flags
-set(DEBUG_FLAGS "-g -O0 -DDEBUG -Wall -Wextra")
+set(DEBUG_FLAGS "-g -O0 -DDEBUG -DDEBUG_UI -Wall -Wextra")
 # Enable debug flags for GCC/Clang
 set(CMAKE_CXX_FLAGS_DEBUG ${DEBUG_FLAGS})
 set(CMAKE_C_FLAGS_DEBUG ${DEBUG_FLAGS})

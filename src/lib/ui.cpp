@@ -78,8 +78,10 @@ void UI::sdl_init()
 #endif
 
     int x, y;
-    SDL_GetWindowPosition(this->window, &x, &y);                    // get main screen position
+    SDL_GetWindowPosition(this->window, &x, &y); // get main screen position
+#ifdef DEBUG_UI
     SDL_SetWindowPosition(this->debug_window, x + this->w + 10, y); // move debug window to the right
+#endif
 }
 
 void update_pixels(SDL_Surface *surface, u8 high_byte, u8 low_byte, int x, int y, u8 tile_y)
@@ -214,18 +216,21 @@ void UI::quit()
     // destroy textures
     if (this->texture)
         SDL_DestroyTexture(this->texture);
+#ifdef DEBUG_UI
     if (this->debug_texture)
         SDL_DestroyTexture(this->debug_texture);
+    if (this->debug_renderer)
+        SDL_DestroyRenderer(this->debug_renderer);
+    if (this->debug_window)
+        SDL_DestroyWindow(this->debug_window);
+#endif
     // destroy rendereres
     if (this->renderer)
         SDL_DestroyRenderer(this->renderer);
-    if (this->debug_renderer)
-        SDL_DestroyRenderer(this->debug_renderer);
     // destroy windows
     if (this->window)
         SDL_DestroyWindow(this->window);
-    if (this->debug_window)
-        SDL_DestroyWindow(this->debug_window);
+
     SDL_Quit();
     TTF_Quit();
 }

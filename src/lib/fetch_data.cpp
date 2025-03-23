@@ -45,7 +45,7 @@ void mem_imm16_to_r8(u16 addreess)
     cpu->setRegister(in.op1, content);
 }
 
-void mem_reg16_to_r8(u16 addreess)
+void mem_reg16_to_r8()
 { // Handle IMM16_TO_R16
     InstructionSet in = cpu->getInstruction();
     u16 reg_value = cpu->getRegister(in.op2);
@@ -108,7 +108,7 @@ void r8_to_imm16(u16 addreess)
     bus_write(imm16, reg_value);
 }
 
-void r8_to_mem_reg16(u16 addreess)
+void r8_to_mem_reg16()
 { // Handle IMM16_TO_R16
     InstructionSet in = cpu->getInstruction();
     u16 register_pointer = cpu->getRegister(*(Registers *)&in.op1);
@@ -158,7 +158,7 @@ void high_mem_load(u16 addreess)
     }
 }
 
-void r8_to_r8(u16 addreess)
+void r8_to_r8()
 { // Handle IMM16_TO_R16
     InstructionSet in = cpu->getInstruction();
     if (in.mnemonic == LD)
@@ -237,7 +237,7 @@ void r16_to_r16(u16 addreess)
     cpu->setRegister(in.op1, (u16)value);
 }
 
-void control_instruction(u16 addreess)
+void control_instruction()
 {
     InstructionSet in = cpu->getInstruction();
     if (in.mnemonic != PREFIX)
@@ -245,7 +245,7 @@ void control_instruction(u16 addreess)
     cpu->setFetchedData(read_8bit_address(cpu->getPC()));
 }
 
-void r8_only(u16 addreess)
+void r8_only()
 {
     InstructionSet in = cpu->getInstruction();
     cpu->setFetchedData(0);
@@ -274,7 +274,7 @@ void fetch_data_and_update_registers()
         mem_imm16_to_r8(addreess);
         break;
     case MEM_REG16_TO_R8:
-        mem_reg16_to_r8(addreess);
+        mem_reg16_to_r8();
         break;
     case R16_TO_IMM16:
         reg16_to_imm16(addreess);
@@ -283,13 +283,13 @@ void fetch_data_and_update_registers()
         r8_to_imm16(addreess);
         break;
     case R8_TO_MEM_R16: // LD [DE], A
-        r8_to_mem_reg16(addreess);
+        r8_to_mem_reg16();
         break;
     case HIGHMEM_LOAD:
         high_mem_load(addreess);
         break;
     case R8_TO_R8:
-        r8_to_r8(addreess);
+        r8_to_r8();
         break;
     case JUMP_CALL:
         jump_call(addreess);
@@ -301,10 +301,10 @@ void fetch_data_and_update_registers()
         r16_to_r16(addreess);
         break;
     case CONTROL_INSTRUCTION:
-        control_instruction(addreess);
+        control_instruction();
         break;
     case R8_ONLY:
-        r8_only(addreess);
+        r8_only();
         break;
     default:
         break;
