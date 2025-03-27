@@ -1,4 +1,6 @@
 #include "timer.hpp"
+#include "ppu.hpp"
+#include "interruption.hpp"
 
 TimerHanlder::TimerHanlder(Memory *memory)
 {
@@ -27,8 +29,10 @@ static bool bit_changed(u16 before, u16 after, int bit)
 
 void TimerHanlder::update_timer(int tcycles)
 {
-    // div is always updated
+    // sync ppu with cpu timer
+    ppu->setCycles(tcycles);
 
+    // div is always updated
     for (int i = 0; i < tcycles; i++)
     {
         u16 old_div = this->div;
@@ -43,7 +47,7 @@ void TimerHanlder::update_timer(int tcycles)
             if (*this->tima == 0xff)
             {
                 *this->tima = *this->tma;
-                this->tima_overflow = true;
+                interruption->setInterruption(Timer);
             }
             else
             {

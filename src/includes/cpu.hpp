@@ -21,6 +21,7 @@ private:
   u16 old_pc;
   u16 pc;
   bool ime; // interruption master enable
+  u16 setImePC = 0;
   // Instruction information + temp data
   InstructionSet current_instruction;
   u8 opcode;

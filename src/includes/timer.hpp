@@ -10,7 +10,6 @@ public:
   u8 *tima;
   u8 *tma;
   u8 *tac;
-  bool tima_overflow = false;
   TimerHanlder(Memory *memory);
   int check_tima();
   void update_timer(int tcycles);

@@ -1,13 +1,22 @@
 #include "ppu.hpp"
-#include <thread>
+#include "interruption.hpp"
 
 using namespace std;
 
+static const int MAX_SCANLINES = 154;
+static const int DOTS_PER_LINE = 456;
+
+static int globalC;
+
 PixelProcessingUnit::PixelProcessingUnit(Memory *mem)
 {
-    // LCD
     this->mem = mem;
-    this->running = true;
+    this->mode = VBlankMode;
+    // num cycles of cpu timer to keep sync
+    this->cycles = 0;
+    // set current ticks
+    this->current_dot = 0;
+    // LCD
     mem->io[0x40] = 0x91;
     mem->io[0x41] = 0x81;
     mem->io[0x42] = 0x00;
@@ -31,7 +40,7 @@ PixelProcessingUnit::PixelProcessingUnit(Memory *mem)
     obp01 = &mem->io[0x49];
 }
 
-PpuMode PixelProcessingUnit::get_ppu_mode()
+PpuMode PixelProcessingUnit::GetPpuMode()
 {
     // lower two bits
     u8 mode = *this->stat & 0b11;
@@ -50,13 +59,13 @@ PpuMode PixelProcessingUnit::get_ppu_mode()
     }
 }
 
-bool PixelProcessingUnit::lcd_is_on()
+bool PixelProcessingUnit::IsLcdOn()
 {
     // BIT 7 indicates if lcd is on on lcdc register
     return *this->lcdc & 0x80;
 }
 
-TileMap PixelProcessingUnit::get_tile_map()
+TileMap PixelProcessingUnit::GetTileMap()
 {
     // BIT 6 - window tile map area
     if (*this->lcdc & 0x40)
@@ -67,7 +76,7 @@ TileMap PixelProcessingUnit::get_tile_map()
     return TileMap{0x9800, 0x9BFF};
 }
 
-bool PixelProcessingUnit::window_frame_enabled()
+bool PixelProcessingUnit::IsWindowFrameEnabled()
 {
     // BIT 5
     return *this->lcdc & 0x20;
@@ -84,7 +93,7 @@ BgAddress PixelProcessingUnit::get_tile_range()
     return BgAddress{0x8800, 0x97FF};
 }
 
-BgAddress PixelProcessingUnit::get_bg_tile_map()
+BgAddress PixelProcessingUnit::GetBgTileMap()
 {
     // BIT 3
     if (*this->lcdc & 0x08)
@@ -95,7 +104,7 @@ BgAddress PixelProcessingUnit::get_bg_tile_map()
     return TileMap{0x9800, 0x9BFF};
 }
 
-ObjSize PixelProcessingUnit::get_obj_size()
+ObjSize PixelProcessingUnit::GetObjSize()
 {
     // BIT 2
     if (*this->lcdc & 0x04)
@@ -106,42 +115,109 @@ ObjSize PixelProcessingUnit::get_obj_size()
     return _8x8;
 }
 
-bool PixelProcessingUnit::obj_enable()
+void PixelProcessingUnit::UpdateLy()
+{
+    *this->ly += 1;
+    if (*this->ly == *this->lyc)
+        *this->stat |= 0b00000010;
+    else
+    {
+        *this->stat &= ~0b00000010;
+    }
+
+    if (*this->stat & 0x40 && *this->ly == *this->lyc)
+    { // bit 6 LYC int select
+        // set interruption flag register FF0F
+        interruption->setInterruption(LCD);
+    }
+}
+
+u8 PixelProcessingUnit::GetLy()
+{
+    return *this->ly;
+}
+
+bool PixelProcessingUnit::IsObjEnable()
 {
     // BIT 1
     return *this->lcdc & 0b10;
 }
 
-bool PixelProcessingUnit::bg_window_enable_priority()
+bool PixelProcessingUnit::BgWindowEnablePriority()
 {
     // BIT 0
     return *this->lcdc & 0b01;
 }
 
-u8 PixelProcessingUnit::get_scx()
+u8 PixelProcessingUnit::getSCX()
 {
     return *this->scx;
 }
 
-u8 PixelProcessingUnit::get_scy()
+u8 PixelProcessingUnit::getSCY()
 {
     return *this->scy;
 }
 
-void PixelProcessingUnit::run()
+void PixelProcessingUnit::setCycles(u8 value)
 {
-
-    cout << "Running PPU" << endl;
-    while (this->running)
-    {
-        std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(10));
-    }
-    cout << "Stopping PPU" << endl;
+    this->cycles += value;
+    globalC += value;
 }
 
-void PixelProcessingUnit::stop()
+void PixelProcessingUnit::runOamMode()
 {
-    this->running = false;
+    this->mode = OAMScanMode;
+    *this->stat = ((*this->stat & 0xFC) | 0x2);
+}
+
+void PixelProcessingUnit::runRenderMode()
+{
+    this->mode = RenderingMode;
+    *this->stat = ((*this->stat & 0xFC) | 0x3);
+}
+void PixelProcessingUnit::runVblankMode()
+{
+    this->mode = VBlankMode;
+    *this->stat = ((*this->stat & 0xFC) | 0x1);
+}
+
+void PixelProcessingUnit::runHblankMode()
+{
+    this->mode = HBlankMode;
+    *this->stat = (*this->stat & 0xFC);
+}
+// 1 ppu dot is 4 cpu cycles
+void PixelProcessingUnit::run()
+{
+    while (this->cycles > 0)
+    {
+        if (this->GetLy() >= 144)
+        {
+            this->runVblankMode();
+        }
+        else
+        {
+            if (this->current_dot <= 80)
+                this->runOamMode();
+            else if (this->current_dot <= 252)
+                this->runRenderMode();
+            else
+                this->runHblankMode();
+        }
+
+        // decrement current cycle control
+        this->cycles -= 1;
+        // every 4cpu ticks, advances 1 dot
+        this->current_dot += 1;
+        if (this->current_dot == DOTS_PER_LINE)
+        {
+            this->current_dot = 0;
+            this->UpdateLy();
+            if (this->GetLy() >= MAX_SCANLINES)
+                *this->ly = 0;
+        }
+    }
 }
 
 PixelProcessingUnit *ppu = nullptr;

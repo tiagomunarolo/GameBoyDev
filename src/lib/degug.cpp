@@ -54,8 +54,7 @@ void debug_memory_and_registers()
        printf("  AF=[%.2X%.2X]\n  BC=[%.2X%.2X]\n  DE=[%.2X%.2X]", cpu->getRegister(A), cpu->getRegister(F),
               cpu->getRegister(B), cpu->getRegister(C), cpu->getRegister(D), cpu->getRegister(E));
        printf("\n  HL=[%.2X%.2X]\n  SP=[%.4X]\n", cpu->getRegister(H), cpu->getRegister(L), cpu->getRegister(SP));
-       printf("\n  IE=[%.2X]\n  IF=[%.2X]\n", *interruption->ie,
-              *interruption->iflag);
+       printf("\n  IE=[%.2X]\n  IF=[%.2X]\n", interruption->getIE(), interruption->getIF());
        printf("\n  DIV=[%.2X]\n  TIMA=[%.2X]\n  TMA=[%.2X]\n  TAC=[%.2X]\n",
               timer->div, *timer->tima, *timer->tma,
               *timer->tac);

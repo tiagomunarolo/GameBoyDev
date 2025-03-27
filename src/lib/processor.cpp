@@ -60,8 +60,16 @@ void int_timer_handler()
 {
     // store old pc, because current inst was note executed due to
     // interruption priority
-    push_stack(cpu->getSP(), cpu->getOldPC());
+    push_stack(cpu->getSP(), cpu->getPC());
     cpu->setPC(0x50);
+}
+
+void int_lcd_handler()
+{
+    // store old pc, because current inst was note executed due to
+    // interruption priority
+    push_stack(cpu->getSP(), cpu->getPC());
+    cpu->setPC(0x48);
 }
 
 // Function for CP instruction
@@ -218,7 +226,6 @@ void execute_di()
 void execute_ei()
 {
     InstructionSet in = cpu->getInstruction();
-
     cpu->setIME(true);
     timer->update_timer(in.cycles);
 }
@@ -807,7 +814,9 @@ void execute_halt()
     {
         // IME is enabled: normal halt behavior
         cpu->setHalt(true);
+#ifdef DEBUG_CPU
         printf("HALT mode: ON\n");
+#endif
     }
     else
     {
@@ -821,15 +830,17 @@ void execute_halt()
         The IF flags aren't cleared.
         */
         // interrupt_flags & enabled_interrupts & 0x1F != 0
-        u8 if_reg = *interruption->iflag;
-        u8 ie_reg = *interruption->ie;
+        u8 if_reg = interruption->getIF();
+        u8 ie_reg = interruption->getIE();
         bool halt = (if_reg & ie_reg & 0x1F) == 0;
 
         if (halt)
         {
             // halt mode on
             cpu->setHalt(true);
+#ifdef DEBUG_CPU
             printf("HALT: ON\n");
+#endif
         }
         else
         {
@@ -884,7 +895,8 @@ ProcessorFunc processor[0x100] = {[NOP] = execute_none,
                                   [RLA] = execute_rla,
                                   [RRCA] = execute_rrca,
                                   [HALT] = execute_halt,
-                                  [INT_TIMER] = int_timer_handler
+                                  [INT_TIMER] = int_timer_handler,
+                                  [INT_LCD] = int_lcd_handler
 
 };
 

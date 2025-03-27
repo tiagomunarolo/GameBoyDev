@@ -1,5 +1,5 @@
 #include "bus.hpp"
-
+#include "ppu.hpp"
 // 0x0000 - 0x3FFF : ROM Bank 0
 // 0x4000 - 0x7FFF : ROM Bank 1 - Switchable
 // 0x8000 - 0x9FFF : VRAM
@@ -30,12 +30,15 @@ u8 read_u8bit_address(u16 address)
     }
     else if (address <= 0x9FFF)
     { // video ram
+        // inaccesible
+        // if (ppu->GetPpuMode() == RenderingMode)
+        //     return 0xFF;
         return memory->vram[address - 0x8000];
     }
     else if (address <= 0xBFFF)
     {
-        if (!memory->ram_enable)
-            return 0xff;
+        // if (!memory->ram_enable)
+        //     return 0xff;
         return memory->external_ram[address - 0xA000];
     }
     else if (address <= 0xCFFF)
@@ -52,11 +55,15 @@ u8 read_u8bit_address(u16 address)
     }
     else if (address <= 0xFE9F)
     { // OAM
+        // inacessible during modes 2/3
+        // if (ppu->GetPpuMode() == RenderingMode || ppu->GetPpuMode() == OAMScanMode)
+        //     return 0xff;
         return memory->oam[address - 0xfe00];
     }
     else if (address <= 0xFEFF)
     { // prohibited
-        throw std::runtime_error("INVALID ADDRESS RANGE: <prohibited area>");
+        printf("INVALID ADDRESS read: <prohibited area> [%.2x]\n", address);
+        return 0x00;
     }
     else if (address <= 0xFF7F)
     { // I/O registers
@@ -109,6 +116,9 @@ void bus_write(u16 address, u8 value)
     }
     else if (address <= 0x9FFF)
     { // video ram
+        // if ppu in mode 3, VRAM is inaccessible
+        // if (ppu->GetPpuMode() == RenderingMode)
+        //     return;
         memory->vram[address - 0x8000] = value;
         return;
     }
@@ -135,12 +145,15 @@ void bus_write(u16 address, u8 value)
     }
     else if (address <= 0xFE9F)
     { // OAM
+        // inacessible during modes 2/3
+        // if (ppu->GetPpuMode() == RenderingMode || ppu->GetPpuMode() == OAMScanMode)
+        //     return;
         memory->oam[address - 0xfe00] = value;
         return;
     }
     else if (address <= 0xFEFF)
     { // prohibited
-        throw std::runtime_error("INVALID ADDRESS RANGE: <prohibited area>");
+        printf("INVALID ADDRESS WRITE: <prohibited area> [%.2x]\n", address);
     }
     else if (address <= 0xFF7F)
     { // I/O registers

@@ -37,25 +37,33 @@ private:
     u8 *bgp;
     u8 *obp0;
     u8 *obp01;
-    bool running = false;
+    PpuMode mode;
+    int cycles;
+    u16 current_dot;
+    void runOamMode();
+    void runRenderMode();
+    void runHblankMode();
+    void runVblankMode();
 
 public:
     // Each tile occupies 16 bytes, where each line is represented by 2 bytes:
 
     PixelProcessingUnit(Memory *mem);
-    bool lcd_is_on();
-    bool window_frame_enabled();
-    bool obj_enable();
-    bool bg_window_enable_priority();
-    PpuMode get_ppu_mode();
-    TileMap get_tile_map();
+    bool IsLcdOn();
+    bool IsWindowFrameEnabled();
+    bool IsObjEnable();
+    bool BgWindowEnablePriority();
+    PpuMode GetPpuMode();
+    TileMap GetTileMap();
     BgAddress get_tile_range();
-    BgAddress get_bg_tile_map();
-    ObjSize get_obj_size();
-    u8 get_scx();
-    u8 get_scy();
+    BgAddress GetBgTileMap();
+    ObjSize GetObjSize();
+    void UpdateLy();
+    u8 GetLy();
+    u8 getSCX();
+    u8 getSCY();
+    void setCycles(u8 value);
     void run();
-    void stop();
 };
 
 extern PixelProcessingUnit *ppu;

@@ -30,11 +30,20 @@ set(SDL2_INCLUDE_DIRS "/opt/homebrew/include/SDL2")
 set(SDL2_LIBRARIES "/opt/homebrew/lib/libSDL2.dylib")
 include_directories(${SDL2_INCLUDE_DIRS})
 
+# add debug flag for gcc
+add_compile_definitions(DEBUG)
+
 # add compile definitions for UI
 add_compile_definitions(UI_ENABLED)
 
+# add compile definitions for debugging UI
+# add_compile_definitions(DEBUG_UI)
+
 # add compile definitions for CPU
 # add_compile_definitions(DEBUG_CPU)
+
+# add compile definitions for CPU
+# add_compile_definitions(DEBUG_FILE)
 
 # Add main executable
 add_executable(GameBoyDevEmulator ${SRC_FILES})

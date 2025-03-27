@@ -5,6 +5,7 @@
 #include "mnemonics.hpp"
 #include "interruption.hpp"
 #include "timer.hpp"
+#include "ppu.hpp"
 #include <chrono>
 #include <thread>
 
@@ -18,158 +19,6 @@ CPU::CPU(Memory *mem)
     : a(0x01), b(0x00), c(0x13), d(0x00), e(0xD8),
       f(0xB0), h(0x01), l(0x4D), sp(0xFFFE), pc(0x0100), ime(false), opcode(0), fetched_data(0),
       halt(false), memory(mem) {};
-
-// Determines the type of instruction being executed
-void CPU::set_instruction_type()
-{
-  // Read the opcode at the current program counter
-  this->setOpcode(read_u8bit_address(this->getPC()));
-
-  // Check if it is a prefixed instruction
-  this->prefixed = this->opcode == 0xcb;
-
-  if (!this->prefixed)
-    return;
-
-  // Prefixed instructions are 2 bytes long, increment PC and read the new
-  // opcode
-  this->setPC(this->getPC() + 1);
-  this->setOpcode(read_u8bit_address(this->getPC()));
-}
-
-void CPU::update_current_instruction()
-{
-  this->set_instruction_type();
-  InstructionType type =
-      this->prefixed ? PREFIXED_TYPE : NON_PREFIXED_TYPE;
-  this->setInstruction(
-      get_instruction_by_opcode(this->getOpcode(), type));
-}
-void CPU::fetch_instruction()
-{
-  // Store the old program counter (useful for debugging)
-  this->setOldPC(this->pc);
-
-  // Update the current instruction
-  this->update_current_instruction();
-
-  // Move to the next instruction in memory
-  this->setPC(this->getPC() + 1);
-}
-
-// Fetches required data for the current instruction
-void CPU::fetch_data()
-{
-  u8 size = this->getInstruction().bytes;
-  fetch_data_and_update_registers();
-
-  if (this->prefixed)
-    return;
-
-  // Move PC forward to account for the instruction's size
-  u16 newPC = this->getPC() + (size - 1);
-  this->setPC(newPC);
-}
-
-// Executes the currently loaded instruction
-void CPU::execute_instruction()
-{
-  // Retrieve the function corresponding to the current instruction mnemonic
-  ProcessorFunc func = get_processor(this->getInstruction().mnemonic);
-
-  // Check for any pending interruptions before executing
-  if (this->getIME() && interruption->hasPendingInterruption())
-    this->setIME(false);
-
-  // If no valid function is found, throw an error
-  if (!func)
-    throw std::runtime_error("Unknown operation");
-
-  // Execute the retrieved function
-  func();
-}
-
-// Checks for timer overflow and triggers an interruption if necessary
-void CPU::check_timer_overflow()
-{
-  if (!timer->tima_overflow)
-    return;
-
-  // Reset the overflow flag and trigger a timer interruption
-  timer->tima_overflow = false;
-  interruption->set_interruption(Timer);
-}
-
-// Handles pending interruptions and executes the corresponding instruction
-void CPU::call_interruption()
-{
-  // Update the current instruction mnemonic with the pending interruption
-  this->current_instruction.mnemonic =
-      interruption->getTnterruptionMnemonic(
-          interruption->pending_int);
-
-  // Remove the current pending interruption
-  interruption->pending_int = None;
-
-  // Save the current instruction state
-  InstructionSet saved = cpu->current_instruction;
-
-  // Execute the interruption handler
-  this->execute_instruction();
-
-  // Restore the original instruction state
-  this->current_instruction = saved;
-}
-
-// Executes a single step in the CPU cycle
-void CPU::execute_step()
-{
-  // If an interruption is pending, handle it first
-  if (interruption->pending_int != None)
-  {
-    this->call_interruption();
-    return;
-  }
-
-  // Otherwise, execute the next instruction
-  this->execute_instruction();
-}
-
-void CPU::run()
-{
-  this->running = true;
-  int loop_found = 0;
-
-  try
-  {
-    while (this->running)
-    {
-      // CPU cycle
-      while (this->isHalted() && this->running && !timer->tima_overflow) // sleep for a while
-        timer->update_timer(1);
-
-      this->setHalt(false);
-      this->fetch_instruction(); // fetch next instrction
-#ifdef DEBUG_CPU
-      debug_memory_and_registers();
-#endif
-      this->fetch_data();           // fetch required data from memory
-      this->execute_step();         // process operation
-      this->check_timer_overflow(); // check if timer overflow
-      if (this->getOldPC() == this->getPC())
-      {
-        loop_found++;
-        if (loop_found >= 5)
-          break;
-      }
-    }
-    cout << "CPU thread finished gracefully" << endl;
-  }
-  catch (const std::exception &e)
-  {
-    std::cerr << e.what() << '\n';
-  }
-}
 
 Memory *CPU::getMemory()
 {
@@ -385,6 +234,158 @@ bool CPU::getIME()
 void CPU::setIME(bool status)
 {
   this->ime = status;
+}
+
+// Determines the type of instruction being executed
+void CPU::set_instruction_type()
+{
+  // Read the opcode at the current program counter
+  this->setOpcode(read_u8bit_address(this->getPC()));
+
+  // Check if it is a prefixed instruction
+  this->prefixed = this->opcode == 0xcb;
+
+  if (!this->prefixed)
+    return;
+
+  // Prefixed instructions are 2 bytes long, increment PC and read the new
+  // opcode
+  this->setPC(this->getPC() + 1);
+  this->setOpcode(read_u8bit_address(this->getPC()));
+}
+
+void CPU::update_current_instruction()
+{
+  this->set_instruction_type();
+  InstructionType type =
+      this->prefixed ? PREFIXED_TYPE : NON_PREFIXED_TYPE;
+  this->setInstruction(
+      get_instruction_by_opcode(this->getOpcode(), type));
+}
+void CPU::fetch_instruction()
+{
+  // Store the old program counter (useful for debugging)
+  this->setOldPC(this->pc);
+
+  // Update the current instruction
+  this->update_current_instruction();
+
+  // Move to the next instruction in memory
+  this->setPC(this->getPC() + 1);
+}
+
+// Fetches required data for the current instruction
+void CPU::fetch_data()
+{
+  u8 size = this->getInstruction().bytes;
+  fetch_data_and_update_registers();
+
+  if (this->prefixed)
+    return;
+
+  // Move PC forward to account for the instruction's size
+  u16 newPC = this->getPC() + (size - 1);
+  this->setPC(newPC);
+}
+
+// Executes the currently loaded instruction
+void CPU::execute_instruction()
+{
+  // Retrieve the function corresponding to the current instruction mnemonic
+  ProcessorFunc func = get_processor(this->getInstruction().mnemonic);
+
+  // Check for any pending interruptions before executing
+  if (this->getIME() && interruption->hasPendingInterruption())
+  {
+    this->setIME(false);
+    interruption->unsetInterruption();
+  }
+
+  // If no valid function is found, throw an error
+  if (!func)
+    throw std::runtime_error("Unknown operation");
+
+  // Execute the retrieved function
+  func();
+}
+
+// Handles pending interruptions and executes the corresponding instruction
+void CPU::call_interruption()
+{
+  // Save the current instruction state
+  InstructionSet saved = cpu->current_instruction;
+
+  this->current_instruction.mnemonic = interruption->getCurrentInterruption();
+
+  // Execute the interruption handler
+  this->execute_instruction();
+
+  // Restore the original instruction state
+  this->current_instruction.mnemonic = saved.mnemonic;
+}
+
+// Executes a single step in the CPU cycle
+void CPU::execute_step()
+{
+  // If an interruption is pending, handle it first
+  if (this->getIME() && interruption->hasPendingInterruption())
+  {
+#ifdef DEBUG_CPU
+    printf("LAST_PC = %.4x, CURRENT_PC=%.4x\n", this->getOldPC(), this->getPC());
+#endif
+    this->call_interruption();
+    return;
+  }
+
+  // Otherwise, execute the next instruction
+  this->execute_instruction();
+}
+
+void CPU::run()
+{
+  this->running = true;
+
+  try
+  {
+    while (this->running)
+    {
+
+      // IME takes one instruction to be enabled
+      bool oldImeDisabled = this->getIME() == false;
+
+      // CPU cycle
+      while (this->isHalted() && !interruption->hasPendingInterruption())
+      { // sleep for a while
+        timer->update_timer(1);
+        ppu->run();
+      }
+
+      this->setHalt(false);      // unset halt
+      this->fetch_instruction(); // fetch next instrction
+#ifdef DEBUG_CPU
+      debug_memory_and_registers();
+#endif
+      this->fetch_data();   // fetch required data from memory
+      this->execute_step(); // process operation
+      if (this->getIME() && oldImeDisabled)
+      {
+        this->setIME(false); // ime is enabled only on next instruction
+        this->setImePC = this->getPC();
+      }
+      ppu->run();
+      if (this->setImePC && this->getOldPC() == this->setImePC)
+      {
+        cout << "IME enabled | PC: " << hex << this->getPC() << endl;
+        this->setImePC = 0;
+        this->setIME(true);
+      }
+    }
+    cout << "CPU thread finished gracefully" << endl;
+  }
+  catch (const std::exception &e)
+  {
+    std::cerr << e.what() << '\n';
+  }
 }
 
 CPU *cpu = nullptr;

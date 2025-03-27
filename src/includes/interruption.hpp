@@ -15,14 +15,18 @@ enum InterruptionType
 
 class InterruptionContoller
 {
+private:
+    u8 *ie;                       // interruput_enable
+    u8 *iflag;                    // interrupt flag
+    InterruptionType pending_int; // pending interruption
 public:
-    u8 *ie;    // interruput_enable
-    u8 *iflag; // interrupt flag
-    InterruptionType get_interruption_type();
+    InterruptionType getInterruptionType();
+    u8 getIE();
+    u8 getIF();
     bool hasPendingInterruption();
-    void set_interruption(InterruptionType int_type);
-    InterruptionType pending_int = None;
-    Mnemonic getTnterruptionMnemonic(InterruptionType int_type);
+    void setInterruption(InterruptionType int_type);
+    void unsetInterruption();
+    Mnemonic getCurrentInterruption();
     InterruptionContoller(Memory *memory);
 };
 

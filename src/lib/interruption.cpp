@@ -7,11 +7,12 @@ InterruptionContoller::InterruptionContoller(Memory *memory)
 {
     this->ie = &memory->ie;
     this->iflag = &memory->iflags;
+    this->pending_int = None;
     *this->ie = 0x00;
     *this->iflag = 0xe1;
 };
 
-InterruptionType InterruptionContoller::get_interruption_type()
+InterruptionType InterruptionContoller::getInterruptionType()
 {
     u8 flags = *this->ie & *this->iflag;
     if (flags & 0b01)
@@ -24,6 +25,15 @@ InterruptionType InterruptionContoller::get_interruption_type()
         return Serial;
     else
         return Joypad;
+}
+
+u8 InterruptionContoller::getIE()
+{
+    return *this->ie;
+}
+u8 InterruptionContoller::getIF()
+{
+    return *this->iflag;
 }
 
 const char *interruption_type_str(InterruptionType in)
@@ -51,7 +61,41 @@ const char *interruption_type_str(InterruptionType in)
     }
 }
 
-void InterruptionContoller::set_interruption(InterruptionType int_type)
+void InterruptionContoller::unsetInterruption()
+{
+    switch (this->pending_int)
+    {
+    case VBlank:
+    {
+        *this->iflag = *this->iflag & ~0b00001;
+        break;
+    }
+    case LCD:
+    {
+        *this->iflag = *this->iflag & ~0b00010;
+        break;
+    }
+    case Timer:
+    {
+        *this->iflag = *this->iflag & ~0b00100;
+        break;
+    }
+    case Serial:
+    {
+        *this->iflag = *this->iflag & ~0b01000;
+        break;
+    }
+    case Joypad:
+    {
+        *this->iflag = *this->iflag & ~0b10000;
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+void InterruptionContoller::setInterruption(InterruptionType int_type)
 {
     switch (int_type)
     {
@@ -85,9 +129,9 @@ void InterruptionContoller::set_interruption(InterruptionType int_type)
     }
 }
 
-Mnemonic InterruptionContoller::getTnterruptionMnemonic(InterruptionType in)
+Mnemonic InterruptionContoller::getCurrentInterruption()
 {
-    switch (in)
+    switch (this->pending_int)
     {
     case VBlank:
         return INT_VBLANK;
@@ -112,16 +156,16 @@ Mnemonic InterruptionContoller::getTnterruptionMnemonic(InterruptionType in)
 
 bool InterruptionContoller::hasPendingInterruption()
 {
-    if ((*this->ie & *this->iflag) != 0x00)
+    if ((this->getIE() & this->getIF()) != 0x00)
     {
-        InterruptionType interruption = get_interruption_type();
+        InterruptionType interruption = getInterruptionType();
         const char *int_type = interruption_type_str(interruption);
-        cout << "Should execute: " << int_type << endl;
-        // disbale current interruption
-        *this->iflag = (*this->iflag) & ~(1 << int(interruption));
+        cout << "Interruption Flags Added: " << int_type << endl;
         this->pending_int = interruption;
         return true;
     }
+    // no pending interruption
+    this->pending_int = None;
     return false;
 };
 

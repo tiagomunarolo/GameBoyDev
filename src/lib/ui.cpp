@@ -159,10 +159,10 @@ void UI::update_window()
 {
 
     // bg tile map is 32x32
-    BgAddress bg = this->ppu->get_bg_tile_map();
+    BgAddress bg = this->ppu->GetBgTileMap();
     // TileMap tileMap = this->ppu->get_tile_range();
-    int scx = this->ppu->get_scx();
-    int scy = this->ppu->get_scy();
+    int scx = this->ppu->getSCX();
+    int scy = this->ppu->getSCY();
     int xDraw = 0;
     int yDraw = 0;
     for (int y = 0; y < 18; y++)
@@ -186,7 +186,7 @@ void UI::update_window()
 
 void UI::update()
 {
-    if (this->ppu->lcd_is_on())
+    if (this->ppu->IsLcdOn())
     {
         this->update_window();
 #ifdef DEBUG_UI

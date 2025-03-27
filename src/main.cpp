@@ -14,9 +14,6 @@ void main_loop()
     // create thread for CPU pipeline
     std::thread cpu_thread(&CPU::run, cpu);
     cpu_thread.detach();
-    // create thread for PPU pipeline
-    //std::thread ppu_thread(&PixelProcessingUnit::run, ppu);
-    //ppu_thread.detach();
 
 #ifdef UI_ENABLED
     while (ui->running)
@@ -27,7 +24,6 @@ void main_loop()
     }
     ui->quit();
     cpu->stop();
-    // ppu->stop();
 #endif
 }
 
