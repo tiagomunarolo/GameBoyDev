@@ -1,4 +1,5 @@
 #include "ppu.hpp"
+#include "ui.hpp"
 #include "interruption.hpp"
 
 using namespace std;
@@ -6,10 +7,18 @@ using namespace std;
 static const int MAX_SCANLINES = 154;
 static const int DOTS_PER_LINE = 456;
 
-static int globalC;
+Sprite::Sprite(u8 y_pos, u8 x_pos, u8 tile_id, u8 attributes)
+{
+    this->y_pos = y_pos;
+    this->x_pos = x_pos;
+    this->tile_id = tile_id;
+    this->attributes = attributes;
+}
 
 PixelProcessingUnit::PixelProcessingUnit(Memory *mem)
 {
+    // for (int i = 0; i < 40; i++)
+    //     this->sprites[i] = Sprite(0, 0, 0, 0); // initialize each sprite to 0
     this->mem = mem;
     this->mode = VBlankMode;
     // num cycles of cpu timer to keep sync
@@ -38,6 +47,8 @@ PixelProcessingUnit::PixelProcessingUnit(Memory *mem)
     bgp = &mem->io[0x47];
     obp0 = &mem->io[0x48];
     obp01 = &mem->io[0x49];
+    wy = &mem->io[0x4A];
+    wx = &mem->io[0x4B];
 }
 
 PpuMode PixelProcessingUnit::GetPpuMode()
@@ -65,15 +76,15 @@ bool PixelProcessingUnit::IsLcdOn()
     return *this->lcdc & 0x80;
 }
 
-TileMap PixelProcessingUnit::GetTileMap()
+u16 PixelProcessingUnit::getWindowTileMap()
 {
     // BIT 6 - window tile map area
     if (*this->lcdc & 0x40)
         // == 1
-        return TileMap{0x9C00, 0x9FFF};
+        return 0x9C00;
 
     // == 0
-    return TileMap{0x9800, 0x9BFF};
+    return 0x9800;
 }
 
 bool PixelProcessingUnit::IsWindowFrameEnabled()
@@ -82,26 +93,26 @@ bool PixelProcessingUnit::IsWindowFrameEnabled()
     return *this->lcdc & 0x20;
 }
 
-BgAddress PixelProcessingUnit::get_tile_range()
+u16 PixelProcessingUnit::getTileArea()
 {
     // BIT 4
     if (*this->lcdc & 0x10)
         // == 1
-        return BgAddress{0x8000, 0x8FFF};
+        return 0x8000;
 
     // == 0
-    return BgAddress{0x8800, 0x97FF};
+    return 0x8800;
 }
 
-BgAddress PixelProcessingUnit::GetBgTileMap()
+u16 PixelProcessingUnit::getBgTileMapAddress()
 {
     // BIT 3
     if (*this->lcdc & 0x08)
         // == 1
-        return TileMap{0x9C00, 0x9FFF};
+        return 0x9C00;
 
     // == 0
-    return TileMap{0x9800, 0x9BFF};
+    return 0x9800;
 }
 
 ObjSize PixelProcessingUnit::GetObjSize()
@@ -117,6 +128,8 @@ ObjSize PixelProcessingUnit::GetObjSize()
 
 void PixelProcessingUnit::UpdateLy()
 {
+    if (this->IsLcdOn() && this->GetLy() >= 0 && this->GetLy() <= 143)
+        ui->update();
     *this->ly += 1;
     if (*this->ly == *this->lyc)
         *this->stat |= 0b00000010;
@@ -159,16 +172,43 @@ u8 PixelProcessingUnit::getSCY()
     return *this->scy;
 }
 
+u8 PixelProcessingUnit::getWX()
+{
+    return *this->wx;
+}
+
+u8 PixelProcessingUnit::getWY()
+{
+    return *this->wy;
+}
+
 void PixelProcessingUnit::setCycles(u8 value)
 {
     this->cycles += value;
-    globalC += value;
+}
+
+u8 PixelProcessingUnit::getBackgroundWindowPallete()
+{
+    return *this->bgp;
+}
+
+u8 PixelProcessingUnit::getObjPallete(bool palletBit)
+{
+    return palletBit ? *this->obp01 : *this->obp0;
 }
 
 void PixelProcessingUnit::runOamMode()
 {
     this->mode = OAMScanMode;
     *this->stat = ((*this->stat & 0xFC) | 0x2);
+    // FE00	FE9F	Object attribute memory (OAM)
+    for (int i = 0; i <= 40; i++)
+    {
+        this->sprites[i].y_pos = mem->oam[4 * i];
+        this->sprites[i].x_pos = mem->oam[4 * i + 1];
+        this->sprites[i].tile_id = mem->oam[4 * i + 2];
+        this->sprites[i].attributes = mem->oam[4 * i + 3];
+    }
 }
 
 void PixelProcessingUnit::runRenderMode()

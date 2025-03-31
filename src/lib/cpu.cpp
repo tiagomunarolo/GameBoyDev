@@ -330,9 +330,6 @@ void CPU::execute_step()
   // If an interruption is pending, handle it first
   if (this->getIME() && interruption->hasPendingInterruption())
   {
-#ifdef DEBUG_CPU
-    printf("LAST_PC = %.4x, CURRENT_PC=%.4x\n", this->getOldPC(), this->getPC());
-#endif
     this->call_interruption();
     return;
   }
@@ -357,7 +354,8 @@ void CPU::run()
       while (this->isHalted() && !interruption->hasPendingInterruption())
       { // sleep for a while
         timer->update_timer(1);
-        ppu->run();
+        if (ppu->IsLcdOn())
+          ppu->run();
       }
 
       this->setHalt(false);      // unset halt
@@ -372,10 +370,10 @@ void CPU::run()
         this->setIME(false); // ime is enabled only on next instruction
         this->setImePC = this->getPC();
       }
-      ppu->run();
+      if (ppu->IsLcdOn())
+        ppu->run();
       if (this->setImePC && this->getOldPC() == this->setImePC)
       {
-        cout << "IME enabled | PC: " << hex << this->getPC() << endl;
         this->setImePC = 0;
         this->setIME(true);
       }

@@ -37,8 +37,8 @@ u8 read_u8bit_address(u16 address)
     }
     else if (address <= 0xBFFF)
     {
-        // if (!memory->ram_enable)
-        //     return 0xff;
+        if (!memory->ram_enable)
+            return 0xff;
         return memory->external_ram[address - 0xA000];
     }
     else if (address <= 0xCFFF)
@@ -56,8 +56,9 @@ u8 read_u8bit_address(u16 address)
     else if (address <= 0xFE9F)
     { // OAM
         // inacessible during modes 2/3
-        // if (ppu->GetPpuMode() == RenderingMode || ppu->GetPpuMode() == OAMScanMode)
-        //     return 0xff;
+        PpuMode mode = ppu->GetPpuMode();
+        if (mode == RenderingMode || mode == OAMScanMode)
+            return 0xFF;
         return memory->oam[address - 0xfe00];
     }
     else if (address <= 0xFEFF)
@@ -146,8 +147,9 @@ void bus_write(u16 address, u8 value)
     else if (address <= 0xFE9F)
     { // OAM
         // inacessible during modes 2/3
-        // if (ppu->GetPpuMode() == RenderingMode || ppu->GetPpuMode() == OAMScanMode)
-        //     return;
+        PpuMode mode = ppu->GetPpuMode();
+        if (mode == RenderingMode || mode == OAMScanMode)
+            return;
         memory->oam[address - 0xfe00] = value;
         return;
     }

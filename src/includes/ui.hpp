@@ -1,8 +1,6 @@
 #pragma once
 #include <iostream>
 #include "definitions.hpp"
-#include "memory.hpp"
-#include "ppu.hpp"
 #include <SDL.h>
 #include <SDL_ttf.h>
 
@@ -26,16 +24,16 @@ private:
     SDL_Surface *debug_screen;
     SDL_Texture *debug_texture;
 #endif
-    Memory *mem;
-    PixelProcessingUnit *ppu;
-    void update_window();
+    void renderObjs();       // render OAM sprites if required
+    void renderWindow();     // render Window Layer
+    void renderBackGround(); // Render background
 #ifdef DEBUG_UI
     void update_dbg_window();
 #endif
     void sdl_init();
 
 public:
-    UI(Memory *mem, PixelProcessingUnit *ppu);
+    UI();
     bool running = false; // running flag
     void update();
     void check_event();

@@ -24,7 +24,7 @@ GB::GB(const char *rom)
     ppu = new PixelProcessingUnit(memory);
     this->ppu_ctx = ppu;
     // ui
-    ui = new UI(memory, ppu);
+    ui = new UI();
     this->ui_ctx = ui;
 }
 

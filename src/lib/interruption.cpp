@@ -160,8 +160,11 @@ bool InterruptionContoller::hasPendingInterruption()
     {
         InterruptionType interruption = getInterruptionType();
         const char *int_type = interruption_type_str(interruption);
-        cout << "Interruption Flags Added: " << int_type << endl;
+        InterruptionType old_pending_int = this->pending_int;
         this->pending_int = interruption;
+        if (this->pending_int != old_pending_int)
+            cout << "Interruption Flags Added: " << int_type << endl;
+
         return true;
     }
     // no pending interruption

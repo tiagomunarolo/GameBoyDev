@@ -4,7 +4,6 @@
 #include "ui.hpp"
 #endif
 #include <SDL.h>
-#include <SDL_ttf.h>
 #include <thread>
 
 using namespace std;
@@ -19,7 +18,6 @@ void main_loop()
     while (ui->running)
     {
         ui->check_event();
-        ui->update();
         SDL_Delay(100);
     }
     ui->quit();
