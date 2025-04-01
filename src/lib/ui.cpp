@@ -48,8 +48,8 @@ void UI::sdl_init()
     // debug window
     num_cols = 16;
     num_rows = 24;
-    columns = num_cols * 8 * scale;
-    rows = num_rows * 8 * scale;
+    columns = num_cols * 8 * SCALE;
+    rows = num_rows * 8 * SCALE;
 
     SDL_CreateWindowAndRenderer(columns, rows, 0,
                                 &this->debug_window, &this->debug_renderer);
@@ -76,7 +76,7 @@ void UI::sdl_init()
     int x, y;
     SDL_GetWindowPosition(this->window, &x, &y); // get main screen position
 #ifdef DEBUG_UI
-    SDL_SetWindowPosition(this->debug_window, x + this->w + 10, y); // move debug window to the right
+    SDL_SetWindowPosition(this->debug_window, x + SCREEN_WIDTH_DEFAULT + 10, y); // move debug window to the right
 #endif
 }
 
@@ -85,19 +85,16 @@ unsigned long getColorPalletId(u8 pallete, u8 color_id)
     return tile_colors[(pallete >> (color_id * 2)) & 0x03];
 }
 
-SDL_Rect updatePixelsView(SDL_Surface *surface, u8 high_byte, u8 low_byte, int x, int y, u8 pallete)
+SDL_Rect updatePixelsView(SDL_Surface *surface, Pixels p)
 {
     SDL_Rect rc;
-    rc.y = y;
+    rc.y = p.y * SCALE;
     rc.w = SCALE;
     rc.h = SCALE;
     for (int bit = 0; bit <= 7; bit++)
     {
-        bool hi = !!(high_byte & (1 << bit));
-        bool lo = !!(low_byte & (1 << bit));
-        u8 color_id = (hi << 1 | lo);
-        rc.x = x + (7 - bit) * SCALE; // bit is left bit, need to keep image not rotated
-        SDL_FillRect(surface, &rc, getColorPalletId(pallete, color_id));
+        rc.x = p.x * SCALE + (7 - bit) * SCALE; // bit is left bit, need to keep image not rotated
+        SDL_FillRect(surface, &rc, getColorPalletId(p.palleteColors[7 - bit], p.colors[7 - bit]));
     }
     return rc;
 }
@@ -120,16 +117,16 @@ void UI::update_dbg_window()
     for (int tile = 0; tile < 384; tile++)
     {
         // every 16 tiles, move to next row
-        yDraw = (tile / 16) * 8 * scale;
+        yDraw = (tile / 16) * 8 * SCALE;
 
-        xDraw = (tile % 16) * 8 * scale;
+        xDraw = (tile % 16) * 8 * SCALE;
 
         for (int tile_row = 0; tile_row < 16; tile_row += 2)
 
         {
             u8 low_byte = memory->vram[tile_row + 16 * tile];
             u8 high_byte = memory->vram[tile_row + 1 + 16 * tile];
-            update_pixels(this->debug_screen, high_byte, low_byte, xDraw, (yDraw + tile_row / 2) * scale, pallete);
+            updatePixelsView(this->debug_screen, high_byte, low_byte, xDraw, (yDraw + tile_row / 2) * SCALE, pallete);
         }
     }
 
@@ -139,8 +136,8 @@ void UI::update_dbg_window()
 
 void UI::update(bool render)
 {
-    Pixels p = ppu->getPixels();
-    updatePixelsView(this->screen, p.high, p.low, p.x * SCALE, p.y * SCALE, p.pallete);
+    Pixels pixels = ppu->getPixels();
+    updatePixelsView(this->screen, pixels);
     if (render)
         render_surface(this->texture, this->renderer, this->screen);
 #ifdef DEBUG_UI

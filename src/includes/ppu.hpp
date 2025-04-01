@@ -28,11 +28,11 @@ public:
 
 typedef struct Pixels
 {
-    int x;
-    int y;
-    u8 low;
-    u8 high;
-    u8 pallete;
+    int x = 0;                       // x position
+    int y = 0;                       // y position
+    bool bg_window_priority = false; // indicates if the pixel from background/window has higher priority
+    u8 colors[8] = {0};              // colors of each pixel
+    u8 palleteColors[8] = {0};          // palette colors each pixel
 } Pixels;
 
 class PixelProcessingUnit

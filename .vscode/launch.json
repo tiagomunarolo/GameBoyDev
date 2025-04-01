@@ -8,7 +8,7 @@
             "request": "launch",
             "cwd": "${workspaceRoot}",
             "args": [
-                "${workspaceRoot}/games/dr_mario.gb"
+                "${workspaceRoot}/games/dmg-acid2.gb"
             ],
             "env": [],
             "preLaunchTask": "build"
