@@ -8,11 +8,18 @@
 const int SCREEN_WIDTH_DEFAULT = 160;
 const int SCREEN_HEIGHT_DEFAULT = 144;
 
+// Color definitios
+static unsigned long WHITE = 0xFFFFFFFF;
+static unsigned long LIGHT_GRAY = 0xFFAAAAAA;
+static unsigned long DARK_GRAY = 0xFF555555;
+static unsigned long BLACK = 0xFF000000;
+const int SCALE = 3;
+
+static unsigned long tile_colors[4] = {WHITE, LIGHT_GRAY, DARK_GRAY, BLACK};
+
 class UI
 {
 private:
-    const int w = SCREEN_WIDTH_DEFAULT;
-    // const int h = SCREEN_HEIGHT_DEFAULT;
     //  windows, renderers and surfaces
     SDL_Window *window;
     SDL_Renderer *renderer;
@@ -24,9 +31,6 @@ private:
     SDL_Surface *debug_screen;
     SDL_Texture *debug_texture;
 #endif
-    void renderObjs();       // render OAM sprites if required
-    void renderWindow();     // render Window Layer
-    void renderBackGround(); // Render background
 #ifdef DEBUG_UI
     void update_dbg_window();
 #endif
@@ -35,7 +39,7 @@ private:
 public:
     UI();
     bool running = false; // running flag
-    void update();
+    void update(bool render);
     void check_event();
     void quit();
 };
