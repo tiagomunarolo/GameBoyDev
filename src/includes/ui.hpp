@@ -39,7 +39,7 @@ private:
 public:
     UI();
     bool running = false; // running flag
-    void update(bool render);
+    void update();
     void check_event();
     void quit();
 };

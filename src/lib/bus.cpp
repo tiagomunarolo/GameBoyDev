@@ -63,11 +63,13 @@ u8 read_u8bit_address(u16 address)
     }
     else if (address <= 0xFEFF)
     { // prohibited
-        printf("INVALID ADDRESS read: <prohibited area> [%.2x]\n", address);
+        // printf("INVALID ADDRESS read: <prohibited area> [%.2x]\n", address);
         return 0x00;
     }
     else if (address <= 0xFF7F)
     { // I/O registers
+        if (address == 0xff00)
+            return 0xff;
         if (address == 0xff0f)
             return memory->iflags;
         return memory->io[address - 0xFF00];
@@ -155,7 +157,8 @@ void bus_write(u16 address, u8 value)
     }
     else if (address <= 0xFEFF)
     { // prohibited
-        printf("INVALID ADDRESS WRITE: <prohibited area> [%.2x]\n", address);
+        // printf("INVALID ADDRESS WRITE: <prohibited area> [%.2x]\n", address);
+        return;
     }
     else if (address <= 0xFF7F)
     { // I/O registers

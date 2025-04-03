@@ -22,13 +22,7 @@ private:
 
 public:
   GB(const char *rom);
-  UI *get_ui();
-  CPU *get_cpu();
-  Memory *get_memory();
-  InterruptionContoller *get_interruption();
-  TimerHanlder *get_timer();
   long step; // internal step (only debugging)
-  void stop_cpu();
 };
 
 extern GB *gb;

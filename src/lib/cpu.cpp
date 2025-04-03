@@ -21,11 +21,6 @@ CPU::CPU(Memory *mem)
       f(0xB0), h(0x01), l(0x4D), sp(0xFFFE), pc(0x0100), ime(false), opcode(0), fetched_data(0),
       halt(false), memory(mem) {};
 
-Memory *CPU::getMemory()
-{
-  return this->memory;
-}
-
 u8 CPU::getOpcode()
 {
   return this->opcode;
@@ -242,13 +237,10 @@ void CPU::set_instruction_type()
 {
   // Read the opcode at the current program counter
   this->setOpcode(read_u8bit_address(this->getPC()));
-
   // Check if it is a prefixed instruction
   this->prefixed = this->opcode == 0xcb;
-
   if (!this->prefixed)
     return;
-
   // Prefixed instructions are 2 bytes long, increment PC and read the new
   // opcode
   this->setPC(this->getPC() + 1);
@@ -267,10 +259,8 @@ void CPU::fetch_instruction()
 {
   // Store the old program counter (useful for debugging)
   this->setOldPC(this->pc);
-
   // Update the current instruction
   this->update_current_instruction();
-
   // Move to the next instruction in memory
   this->setPC(this->getPC() + 1);
 }
@@ -315,14 +305,14 @@ void CPU::call_interruption()
 {
   // Save the current instruction state
   InstructionSet saved = cpu->current_instruction;
-
+  u16 savedData = getFetchedData();
+  // update mnemonic to current interruption
   this->current_instruction.mnemonic = interruption->getCurrentInterruption();
-
   // Execute the interruption handler
   this->execute_instruction();
-
   // Restore the original instruction state
   this->current_instruction = saved;
+  this->setFetchedData(savedData);
 }
 
 void CPU::run()
@@ -333,14 +323,14 @@ void CPU::run()
   {
     while (this->running)
     {
+      // IME takes one instruction to be enabled
+      bool oldImeDisabled = this->getIME() == false;
       if (this->getIME() && interruption->hasPendingInterruption())
       {
         this->setHalt(false); // unset halt
         this->call_interruption();
       }
       serial->output_serial_data();
-      // IME takes one instruction to be enabled
-      bool oldImeDisabled = this->getIME() == false;
 
       // If halted, run for one cycle
       if (this->isHalted() && !interruption->hasPendingInterruption())

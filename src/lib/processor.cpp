@@ -186,19 +186,16 @@ void execute_ret()
     else if (check_operand(in.op1, Z) && !cpu->getFlag(ZERO_FLAG))
     {
         timer->update_timer(cycles);
-
         return;
     }
     else if (check_register(in.op1, C) && !cpu->getFlag(CARRY_FLAG))
     {
         timer->update_timer(cycles);
-
         return;
     }
     else if (check_operand(in.op1, NC) && cpu->getFlag(CARRY_FLAG))
     {
         timer->update_timer(cycles);
-
         return;
     }
     else if (in.mnemonic == RETI)
@@ -210,7 +207,6 @@ void execute_ret()
     {
         cycles += 8;
     }
-
     else
     {
         cycles += 12; // if action taken, additional 12 tick cycles
@@ -223,7 +219,6 @@ void execute_ret()
 void execute_di()
 {
     InstructionSet in = cpu->getInstruction();
-
     cpu->setIME(false);
     timer->update_timer(in.cycles);
 }
@@ -241,8 +236,7 @@ void execute_xor()
 
     u8 xor1 = cpu->getRegister(in.op1);
     u8 xor2 = 0;
-    if (cpu->getOpcode() == 0xAE ||
-        cpu->getOpcode() == 0xEE) // xor a, [hl]
+    if (cpu->getOpcode() == 0xAE || cpu->getOpcode() == 0xEE)
         xor2 = cpu->getFetchedData();
     else
         xor2 = cpu->getRegister(in.op2);
@@ -779,7 +773,6 @@ void execute_ldh()
     InstructionSet in = cpu->getInstruction();
     if (cpu->getOpcode() == 0xF0)
     { // LDH A, [A8]
-
         cpu->setRegister(in.op1, cpu->getFetchedData());
     }
     else if (cpu->getOpcode() == 0xE0)
@@ -807,7 +800,6 @@ void execute_ldh()
 void execute_cpl()
 {
     InstructionSet in = cpu->getInstruction();
-
     cpu->setFlag(SUB_FLAG, true);
     cpu->setFlag(HC_FLAG, true);
     cpu->setRegister(A, ~cpu->getRegister(A));
@@ -817,7 +809,6 @@ void execute_cpl()
 void execute_scf()
 {
     InstructionSet in = cpu->getInstruction();
-
     cpu->setFlag(SUB_FLAG, false);
     cpu->setFlag(HC_FLAG, false);
     cpu->setFlag(CARRY_FLAG, true);
@@ -827,7 +818,6 @@ void execute_scf()
 void execute_ccf()
 {
     InstructionSet in = cpu->getInstruction();
-
     cpu->setFlag(SUB_FLAG, false);
     cpu->setFlag(HC_FLAG, false);
     cpu->setFlag(CARRY_FLAG, not cpu->getFlag(CARRY_FLAG));
@@ -941,15 +931,10 @@ void execute_halt()
         {
             // halt mode on
             cpu->setHalt(true);
-#ifdef DEBUG_CPU
             printf("HALT: ON\n");
-#endif
         }
-        else
-        {
-            // HALT BUG
+        else // HALT BUG
             printf("HALT BUG\n");
-        }
     }
     timer->update_timer(in.cycles);
 }

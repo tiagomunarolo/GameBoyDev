@@ -28,22 +28,4 @@ GB::GB(const char *rom)
     this->ui_ctx = ui;
 }
 
-// Returns a pointer to the UI instance
-UI *GB::get_ui() { return this->ui_ctx; }
-
-// Returns a pointer to the CPU instance
-CPU *GB::get_cpu() { return this->cpu_ctx; }
-
-// Returns a pointer to the Memory instance
-Memory *GB::get_memory() { return this->memory_ctx; }
-
-// Returns a pointer to the InterruptionController instance
-InterruptionContoller *GB::get_interruption() { return this->interruption_ctx; }
-
-// Returns a pointer to the TimerHandler instance
-TimerHanlder *GB::get_timer() { return this->timer_ctx; }
-
-// stop cpu
-void GB::stop_cpu() { this->cpu_ctx->stop(); };
-
 GB *gb = nullptr;

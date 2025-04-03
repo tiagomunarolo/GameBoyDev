@@ -69,8 +69,6 @@ public:
   // temp cpu data
   void setFetchedData(u16 value);
   u16 getFetchedData();
-  // Memory
-  Memory *getMemory();
   // interruption info
   bool getIME();
   void setIME(bool status);

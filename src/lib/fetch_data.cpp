@@ -5,18 +5,15 @@ using namespace std;
 
 void imm16_to_r16(u16 addreess)
 { // Handle IMM16_TO_R16
-    u16 value = read_u16bit_address(addreess);
-    cpu->setFetchedData(value);
+    cpu->setFetchedData(read_u16bit_address(addreess));
 }
 
 void imm8_to_r16(u16 addreess)
 { // Handle IMM16_TO_R16
     if (cpu->getOpcode() == 0xE8)
-    { // ADD SP, E8
         cpu->setFetchedData(read_8bit_address(addreess));
-        return;
-    }
-    cpu->setFetchedData(read_u8bit_address(addreess));
+    else
+        cpu->setFetchedData(read_u8bit_address(addreess));
 }
 
 void imm8_to_r8(u16 addreess)
@@ -36,41 +33,10 @@ void mem_reg16_to_r8()
     InstructionSet in = cpu->getInstruction();
     u16 reg_value = cpu->getRegister(in.op2);
     u8 value = read_8bit_address(reg_value);
-    if (cpu->getOpcode() == 0xBE)
-    { // CP A, [HL]
-        cpu->setFetchedData(read_u8bit_address(reg_value));
-        return;
-    }
-    else if (cpu->getOpcode() == 0x8E)
-    { // ADC A, [HL]
-        cpu->setFetchedData(read_u8bit_address(reg_value));
-        return;
-    }
-    else if (cpu->getOpcode() == 0x86)
-    { // ADD A (HL)
-        cpu->setFetchedData(read_u8bit_address(reg_value));
-        return;
-    }
-    else if (cpu->getOpcode() == 0x96)
-    { // SUB A (HL)
-        cpu->setFetchedData(read_u8bit_address(reg_value));
-        return;
-    }
-    else if (cpu->getOpcode() == 0x9E)
-    { // SBC A (HL)
-        cpu->setFetchedData(read_u8bit_address(reg_value));
-        return;
-    }
-    else if (cpu->getOpcode() == 0xA6)
-    { // AND (HL)
-        cpu->setFetchedData(read_u8bit_address(reg_value));
-        return;
-    }
-    else if (cpu->getOpcode() == 0xAE || cpu->getOpcode() == 0xB6)
-    { // XOR A, [HL]
+    if (cpu->getOpcode() == 0xAE || cpu->getOpcode() == 0xB6)
         cpu->setFetchedData(value);
-        return;
-    }
+    else
+        cpu->setFetchedData(read_u8bit_address(reg_value));
 }
 
 void reg16_to_imm16(u16 addreess)
@@ -108,9 +74,8 @@ void high_mem_load(u16 addreess)
 }
 
 void r8_to_r8()
-{ // Handle IMM16_TO_R16
-    InstructionSet in = cpu->getInstruction();
-    cpu->setFetchedData(cpu->getRegister(in.op2));
+{ // Handle R8_TO_R8
+    cpu->setFetchedData(cpu->getRegister(cpu->getInstruction().op2));
 }
 
 void jump_call(u16 addreess)

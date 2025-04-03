@@ -10,7 +10,7 @@ using namespace std;
 
 void main_loop()
 {
-    // create thread for CPU pipeline
+    // create thread for CPU/PPU pipeline
     std::thread cpu_thread(&CPU::run, cpu);
     cpu_thread.detach();
 
@@ -18,7 +18,8 @@ void main_loop()
     while (ui->running)
     {
         ui->check_event();
-        SDL_Delay(100);
+        ui->update();
+        SDL_Delay(1);
     }
     ui->quit();
     cpu->stop();
@@ -37,8 +38,7 @@ int main(int argc, const char *argv[])
     }
     catch (std::exception &e)
     {
-        cout << e.what() << " Opcode: " << std::hex
-             << int(gb->get_cpu()->getOpcode()) << endl;
+        cout << e.what() << " Opcode: " << std::hex << int(cpu->getOpcode()) << endl;
     }
     return 0;
 }

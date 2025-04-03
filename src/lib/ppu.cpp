@@ -1,6 +1,8 @@
 #include "ppu.hpp"
 #include "ui.hpp"
 #include "interruption.hpp"
+#include <thread>
+#include <chrono>
 
 using namespace std;
 
@@ -162,15 +164,12 @@ void PixelProcessingUnit::UpdateLy()
     if (*this->ly == *this->lyc)
         *this->stat |= 0b00000010;
     else
-    {
         *this->stat &= ~0b00000010;
-    }
 
+    // bit 6 LYC int select
+    // set interruption flag register FF0F
     if (*this->stat & 0x40 && *this->ly == *this->lyc)
-    { // bit 6 LYC int select
-        // set interruption flag register FF0F
         interruption->setInterruption(LCD);
-    }
 }
 
 u8 PixelProcessingUnit::GetLy()
@@ -210,10 +209,29 @@ u8 PixelProcessingUnit::getWY()
     return *this->wy;
 }
 
+bool PixelProcessingUnit::allowRender()
+{
+    bool allow = cyclesRender >= FRAME_CYCLES;
+    if (allow)
+    {
+        this->cyclesRender = 0;
+        this->rendering = true;
+    }
+    return allow;
+}
+
+void PixelProcessingUnit::unblock()
+{
+    this->rendering = false;
+}
+
 void PixelProcessingUnit::setCycles(u8 value)
 {
     if (this->IsLcdOn())
+    {
         this->cycles += value;
+        this->cyclesRender += cycles;
+    }
 }
 
 u8 PixelProcessingUnit::getBackgroundWindowPallete()
@@ -249,8 +267,8 @@ void PixelProcessingUnit::runRenderMode()
 {
     this->mode = RenderingMode;
     *this->stat = ((*this->stat & 0xFC) | 0x3);
-    if (this->IsLcdOn() && this->GetLy() >= 0 && this->GetLy() <= 143)
-        ui->update(this->current_dot == 252 && this->GetLy() == 143);
+    this->current_dot = 252;
+    // std::this_thread::sleep_for(std::chrono::milliseconds(1));
 }
 void PixelProcessingUnit::runVblankMode()
 {
@@ -267,9 +285,8 @@ void PixelProcessingUnit::runHblankMode()
     *this->stat = (*this->stat & 0xFC);
 }
 
-Pixels PixelProcessingUnit::getBackgroundPixels()
+Pixels PixelProcessingUnit::getBackgroundPixels(int y)
 {
-    int y = this->GetLy();
     u16 tile_area = this->getTileArea();
     int row = ((this->getSCY() + y) / 8) % 32;                         // vertical shift
     int col = ((this->getSCX() + this->pixel_x) / 8) % 32;             // horizontal shift
@@ -296,11 +313,10 @@ Pixels PixelProcessingUnit::getBackgroundPixels()
     return pixels;
 }
 
-Pixels PixelProcessingUnit::getWindowPixels()
+Pixels PixelProcessingUnit::getWindowPixels(int y)
 {
     int wx = this->getWX() - 7; // WX is offset by 7 pixels
     int wy = this->getWY();
-    int y = this->GetLy();
 
     // Window only starts rendering at WY, and WX must be visible
     if (y < wy || wx >= SCREEN_WIDTH_DEFAULT || wx < 0 || this->pixel_x < wx)
@@ -329,10 +345,9 @@ Pixels PixelProcessingUnit::getWindowPixels()
     return pixels;
 }
 
-Pixels PixelProcessingUnit::getObjectsPixels()
+Pixels PixelProcessingUnit::getObjectsPixels(int y)
 {
 
-    int ly = this->GetLy();
     int objSize = this->GetObjSize();
 
     std::vector<Sprite> valid_objs = {};
@@ -347,7 +362,7 @@ Pixels PixelProcessingUnit::getObjectsPixels()
         int y_higher = y_lower + objSize - 1;
 
         // ignore sprites outside screen for now
-        if (ly < y_lower || ly > y_higher)
+        if (y < y_lower || y > y_higher)
             continue;
 
         // ignore sprites outside screen for now
@@ -381,14 +396,14 @@ Pixels PixelProcessingUnit::getObjectsPixels()
         u8 pallete = this->getObjPallete((sprite.attributes >> 4) & 0x01);
 
         int tile_pos = 0, pos = 0;
-        pos = tile_pos = (ly % objSize);
+        pos = tile_pos = (y % objSize);
         int tile_id = sprite.tile_id * 16;
         if (objSize == 16)
             tile_id = (sprite.tile_id & 0xFE) * 16;
         if (objSize == 16 && pos >= 8)
         {
-            tile_id = (sprite.tile_id + 1) * 16;
-            pos = tile_pos = (ly % 8);
+            tile_id = (sprite.tile_id | 0x1) * 16;
+            pos = tile_pos = (y % 8);
         }
         if (y_fliped)
             tile_pos = 7 - tile_pos;
@@ -400,7 +415,7 @@ Pixels PixelProcessingUnit::getObjectsPixels()
             low_byte = reverse_bit_x(low_byte);
             high_byte = reverse_bit_x(high_byte);
         }
-        Pixels pixels = {this->pixel_x, ly, 0, false};
+        Pixels pixels = {this->pixel_x, y, 0, false};
         pixels.bg_window_priority = (sprite.attributes & 0x80) != 0;
         pixels.color = getColor(high_byte, low_byte, pallete, this->pixel_x);
         return pixels;
@@ -408,43 +423,60 @@ Pixels PixelProcessingUnit::getObjectsPixels()
     return Pixels{-1, -1, 0, false};
 }
 
-Pixels PixelProcessingUnit::getPixels()
+std::vector<Pixels> PixelProcessingUnit::getPixels(int y)
 {
-    Pixels pixels = this->getBackgroundPixels();
-    Pixels windowPixels = this->getWindowPixels();
-    Pixels objPixels = this->getObjectsPixels();
-    if (IsWindowFrameEnabled() && windowPixels.x != -1 && windowPixels.y != -1)
+    std::vector<Pixels> pixelsVec;
+    while (pixelsVec.size() < SCREEN_WIDTH_DEFAULT)
     {
-        pixels.color = windowPixels.color;
-    }
-
-    if (IsObjEnable() && objPixels.x != -1 && objPixels.y != -1)
-    {
-        if (objPixels.bg_window_priority)
+        Pixels pixels = this->getBackgroundPixels(y);
+        if (IsWindowFrameEnabled() && BgWindowEnablePriority())
         {
-            if (pixels.color == WHITE)
-                pixels.color = objPixels.color;
+            Pixels windowPixels = this->getWindowPixels(y);
+            // if valid window layer pixel
+            if (windowPixels.x != -1 && windowPixels.y != -1)
+                pixels.color = windowPixels.color;
         }
-        else
-        {
-            if (objPixels.color != WHITE)
-                pixels.color = objPixels.color;
-        }
-    }
 
-    this->pixel_x = (this->pixel_x + 1) % SCREEN_WIDTH_DEFAULT;
-    return pixels;
+        if (IsObjEnable())
+        {
+            Pixels objPixels = this->getObjectsPixels(y);
+            if (objPixels.x != -1 && objPixels.y != -1)
+            { // if valid object
+
+                if (objPixels.bg_window_priority)
+                {
+                    if (pixels.color == WHITE)
+                        pixels.color = objPixels.color;
+                }
+                else
+                {
+                    if (objPixels.color != WHITE)
+                        pixels.color = objPixels.color;
+                }
+            }
+        }
+
+        this->pixel_x = (this->pixel_x + 1) % SCREEN_WIDTH_DEFAULT;
+        pixelsVec.push_back(pixels);
+    }
+    return pixelsVec;
 }
 
 // 1 ppu dot is 4 cpu cycles
 void PixelProcessingUnit::run()
 {
+    if (!IsLcdOn()) // if ppu disabled
+        return;
+
+    // flag is clean after rendering, by UI
+    // sleep for 1ms to avoid cpu overload
+    while (this->rendering)
+        std::this_thread::sleep_until(std::chrono::system_clock::now() + std::chrono::milliseconds(1));
+
     while (this->cycles > 0)
     {
         if (this->GetLy() >= SCREEN_HEIGHT_DEFAULT)
-        {
             this->runVblankMode();
-        }
         else
         {
             if (this->current_dot <= 80)

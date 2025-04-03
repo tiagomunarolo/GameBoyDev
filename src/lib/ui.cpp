@@ -3,20 +3,24 @@
 
 using namespace std;
 
-static void updatePixelsView(SDL_Surface *surface, Pixels p)
+static void updatePixelsView(SDL_Surface *surface, std::vector<Pixels> pixels)
 {
     SDL_Rect rc;
-    rc.y = p.y * SCALE;
-    rc.x = p.x * SCALE;
-    rc.w = SCALE;
-    rc.h = SCALE;
-    SDL_FillRect(surface, &rc, p.color);
+    while (!pixels.empty())
+    {
+        Pixels p = pixels.back(); // Get last element
+        pixels.pop_back();        // Remove last element
+        rc.y = p.y * SCALE;
+        rc.x = p.x * SCALE;
+        rc.w = SCALE;
+        rc.h = SCALE;
+        SDL_FillRect(surface, &rc, p.color);
+    }
 }
 
 static void render_surface(SDL_Texture *texture, SDL_Renderer *renderer, SDL_Surface *surface)
 {
     SDL_UpdateTexture(texture, NULL, surface->pixels, surface->pitch);
-    SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, texture, NULL, NULL);
     SDL_RenderPresent(renderer);
 }
@@ -24,12 +28,6 @@ static void render_surface(SDL_Texture *texture, SDL_Renderer *renderer, SDL_Sur
 // intialize SDL and SDL_ttf. Returns SDL_Window
 void UI::sdl_init()
 {
-    // Initialize SDL and SDL_ttf
-    if (TTF_Init() == -1)
-    {
-        std::cerr << "SDL_ttf could not initialize! SDL_ttf Error: " << TTF_GetError() << std::endl;
-        exit(1);
-    }
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
         std::cerr << "SDL could not initialize! SDL_Error: " << SDL_GetError() << std::endl;
@@ -60,7 +58,6 @@ void UI::sdl_init()
                                 columns,
                                 rows);
     SDL_FillRect(screen, NULL, WHITE);
-    render_surface(texture, renderer, screen);
 
 #ifdef DEBUG_UI
     // debug window
@@ -108,29 +105,41 @@ void UI::update_dbg_window()
     for (int tile = 0; tile < 384; tile++)
     {
         // every 16 tiles, move to next row
-        yDraw = (tile / 16) * 8 * SCALE;
-
-        xDraw = (tile % 16) * 8 * SCALE;
+        yDraw = (tile / 16) * 8;
+        xDraw = (tile % 16) * 8;
 
         for (int tile_row = 0; tile_row < 16; tile_row += 2)
 
         {
             u8 low_byte = memory->vram[tile_row + 16 * tile];
             u8 high_byte = memory->vram[tile_row + 1 + 16 * tile];
-            updatePixelsView(debug_screen, high_byte, low_byte, xDraw, (yDraw + tile_row / 2) * SCALE, pallete);
+            for (int i = 0; i < 8; i++)
+            {
+                int x = (xDraw + i) % 8;
+                u8 color_id = (((high_byte >> (7 - x)) & 0x01) << 1) | (((low_byte >> (7 - x)) & 0x01));
+                Pixels pixel = {xDraw + x, yDraw + tile_row / 2, COLORS[((pallete >> (color_id * 2))) & 0x03]};
+                updatePixelsView(debug_screen, pixel);
+            }
         }
     }
-
     render_surface(debug_texture, debug_renderer, debug_screen);
 }
 #endif
 
-void UI::update(bool render)
+void UI::update()
 {
-    Pixels pixels = ppu->getPixels();
-    updatePixelsView(screen, pixels);
-    if (render)
-        render_surface(texture, renderer, screen);
+    if (!ppu->allowRender())
+        return;
+    // get all pixels from current scanline
+    for (int row = 0; row < SCREEN_HEIGHT_DEFAULT; row++)
+    {
+        std::vector<Pixels> pixels = ppu->getPixels(row);
+        // update screen pixels
+        updatePixelsView(screen, pixels);
+    }
+    // render elements
+    render_surface(texture, renderer, screen);
+    ppu->unblock();
 #ifdef DEBUG_UI
     update_dbg_window();
 #endif
@@ -172,7 +181,6 @@ void UI::quit()
 #endif
 
     SDL_Quit();
-    TTF_Quit();
 }
 
 UI *ui = nullptr;

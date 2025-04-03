@@ -1,6 +1,10 @@
 #pragma once
+#include <vector>
 #include "definitions.hpp"
 #include "memory.hpp"
+
+// const to indicate how many cycles required to update a frame
+const int FRAME_CYCLES = 70224;
 
 // Screen dimensions
 // 160x144 pixels;
@@ -52,6 +56,8 @@ private:
     u8 internalWy;
     PpuMode mode;
     int cycles;
+    int cyclesRender;
+    bool rendering = false;
     u16 current_dot;
     int pixel_x;
     u8 GetObjSize();
@@ -75,9 +81,9 @@ private:
     u16 getBgTileMapAddress(); // Bakcgorund Tile Map
     u16 getTileArea();         // Tile area on VRAM
     // Pixel fecth
-    Pixels getObjectsPixels();
-    Pixels getBackgroundPixels();
-    Pixels getWindowPixels();
+    Pixels getObjectsPixels(int y);
+    Pixels getBackgroundPixels(int y);
+    Pixels getWindowPixels(int y);
     // PPU modes
     void runOamMode();
     void runRenderMode();
@@ -91,12 +97,16 @@ public:
     void run();
     // Flag to indicate if LCD is enabled
     bool IsLcdOn();
-    // Method to fetch pixels
-    Pixels getPixels();
+    // Method to fetch pixels on current row
+    std::vector<Pixels> getPixels(int row);
     // Check ppu execution mode (view PpuMode)
     PpuMode GetPpuMode();
     // Sync PPU cycles with internal timer
     void setCycles(u8 value);
+    // flag to allow Rendering
+    bool allowRender();
+    // unset rendering flag
+    void unblock();
 };
 
 extern PixelProcessingUnit *ppu;

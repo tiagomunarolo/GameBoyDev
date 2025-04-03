@@ -8,7 +8,7 @@
             "request": "launch",
             "cwd": "${workspaceRoot}",
             "args": [
-                "${workspaceRoot}/games/dmg-acid2.gb"
+                "${workspaceRoot}/games/asteroids.gb"
             ],
             "env": [],
             "preLaunchTask": "build"
