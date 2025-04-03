@@ -3,6 +3,10 @@
 
 using namespace std;
 
+Uint32 start_time = SDL_GetTicks(); // Get start time
+int frame_count = 0;
+int FPS_DESIRED = 60;
+
 static void updatePixelsView(SDL_Surface *surface, std::vector<Pixels> pixels)
 {
     SDL_Rect rc;
@@ -130,6 +134,8 @@ void UI::update()
 {
     if (!ppu->allowRender())
         return;
+
+    Uint32 current_time = SDL_GetTicks();
     // get all pixels from current scanline
     for (int row = 0; row < SCREEN_HEIGHT_DEFAULT; row++)
     {
@@ -139,7 +145,18 @@ void UI::update()
     }
     // render elements
     render_surface(texture, renderer, screen);
+    frame_count++;
+
+    // Print FPS every second
+    if (current_time - start_time >= 1000)
+    {
+        std::cout << "FPS: " << frame_count << std::endl;
+        frame_count = 0;
+        start_time = current_time;
+    }
+
     ppu->unblock();
+
 #ifdef DEBUG_UI
     update_dbg_window();
 #endif

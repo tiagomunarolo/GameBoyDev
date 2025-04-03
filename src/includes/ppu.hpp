@@ -3,9 +3,6 @@
 #include "definitions.hpp"
 #include "memory.hpp"
 
-// const to indicate how many cycles required to update a frame
-const int FRAME_CYCLES = 70224;
-
 // Screen dimensions
 // 160x144 pixels;
 enum PpuMode
@@ -60,11 +57,10 @@ private:
     bool rendering = false;
     u16 current_dot;
     int pixel_x;
-    u8 GetObjSize();
-    void UpdateLy();
+    u8 getObjectSize();
+    void updateLy();
     Sprite sprites[40];
     // position lcd registers
-    u8 GetLy();
     u8 getSCX();
     u8 getSCY();
     u8 getWX();
@@ -107,6 +103,8 @@ public:
     bool allowRender();
     // unset rendering flag
     void unblock();
+    // Get current LY
+    u8 getLy();
 };
 
 extern PixelProcessingUnit *ppu;

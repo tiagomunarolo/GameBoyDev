@@ -139,7 +139,7 @@ u16 PixelProcessingUnit::getBgTileMapAddress()
     return 0x9800;
 }
 
-u8 PixelProcessingUnit::GetObjSize()
+u8 PixelProcessingUnit::getObjectSize()
 {
     // BIT 2
     if (*this->lcdc & 0x04)
@@ -150,12 +150,12 @@ u8 PixelProcessingUnit::GetObjSize()
     return 8;
 }
 
-void PixelProcessingUnit::UpdateLy()
+void PixelProcessingUnit::updateLy()
 {
     *this->ly += 1;
     this->pixel_x = 0;
     if (this->IsWindowFrameEnabled() &&
-        this->GetLy() > this->getWY() && this->getWY() >= 0 &&
+        this->getLy() > this->getWY() && this->getWY() >= 0 &&
         this->getWY() <= 143 && this->getWX() >= 7 && this->getWX() <= 166)
     {
         this->internalWy = internalWy + 1;
@@ -170,9 +170,12 @@ void PixelProcessingUnit::UpdateLy()
     // set interruption flag register FF0F
     if (*this->stat & 0x40 && *this->ly == *this->lyc)
         interruption->setInterruption(LCD);
+
+    if (getLy() == 143)
+        rendering = true;
 }
 
-u8 PixelProcessingUnit::GetLy()
+u8 PixelProcessingUnit::getLy()
 {
     return *this->ly;
 }
@@ -211,13 +214,7 @@ u8 PixelProcessingUnit::getWY()
 
 bool PixelProcessingUnit::allowRender()
 {
-    bool allow = cyclesRender >= FRAME_CYCLES;
-    if (allow)
-    {
-        this->cyclesRender = 0;
-        this->rendering = true;
-    }
-    return allow;
+    return this->rendering;
 }
 
 void PixelProcessingUnit::unblock()
@@ -268,7 +265,6 @@ void PixelProcessingUnit::runRenderMode()
     this->mode = RenderingMode;
     *this->stat = ((*this->stat & 0xFC) | 0x3);
     this->current_dot = 252;
-    // std::this_thread::sleep_for(std::chrono::milliseconds(1));
 }
 void PixelProcessingUnit::runVblankMode()
 {
@@ -348,7 +344,7 @@ Pixels PixelProcessingUnit::getWindowPixels(int y)
 Pixels PixelProcessingUnit::getObjectsPixels(int y)
 {
 
-    int objSize = this->GetObjSize();
+    int objSize = this->getObjectSize();
 
     std::vector<Sprite> valid_objs = {};
     for (int i = 0; i < 40; i++)
@@ -475,7 +471,7 @@ void PixelProcessingUnit::run()
 
     while (this->cycles > 0)
     {
-        if (this->GetLy() >= SCREEN_HEIGHT_DEFAULT)
+        if (this->getLy() >= SCREEN_HEIGHT_DEFAULT)
             this->runVblankMode();
         else
         {
@@ -497,8 +493,8 @@ void PixelProcessingUnit::run()
         if (this->current_dot == DOTS_PER_LINE)
         {
             this->current_dot = 0;
-            this->UpdateLy();
-            if (this->GetLy() >= MAX_SCANLINES)
+            this->updateLy();
+            if (this->getLy() >= MAX_SCANLINES)
                 *this->ly = 0;
         }
     }
