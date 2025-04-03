@@ -43,7 +43,6 @@ void debug_memory_and_registers()
        u8 b0 = read_u8bit_address(old_pc);
        u8 b1 = read_u8bit_address(old_pc + 1);
        u8 b2 = read_u8bit_address(old_pc + 2);
-       u8 b3 = read_u8bit_address(old_pc + 3);
 
        printf("MEMORY[%.4X]: %.2X %.2X %.2X\n", old_pc, b0, b1, b2);
 

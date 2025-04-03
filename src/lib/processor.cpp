@@ -72,6 +72,11 @@ void int_lcd_handler()
     cpu->setPC(0x48);
 }
 
+void int_vblank_handler()
+{
+    push_stack(cpu->getSP(), cpu->getPC());
+    cpu->setPC(0x40);
+}
 // Function for CP instruction
 void execute_compare()
 {
@@ -701,6 +706,104 @@ void execute_rst()
     timer->update_timer(in.cycles);
 }
 
+void execute_load()
+{
+    InstructionSet in = cpu->getInstruction();
+    if (in.operation == IMM16_TO_R16)
+        cpu->setRegister(in.op1, cpu->getFetchedData());
+    else if (in.operation == IMM8_TO_R16)
+    {
+        u16 reg_pointer = cpu->getRegister(in.op1);
+        bus_write(reg_pointer, cpu->getFetchedData());
+    }
+    else if (in.operation == IMM8_TO_R8)
+        cpu->setRegister(in.op1, cpu->getFetchedData());
+    else if (in.operation == MEM_IMM16_TO_R8)
+        cpu->setRegister(in.op1, cpu->getFetchedData());
+    else if (in.operation == MEM_REG16_TO_R8)
+    {
+        u16 reg_value = cpu->getRegister(in.op2);
+        u8 value = read_8bit_address(reg_value);
+        if (cpu->getOpcode() == 0x2A) // LD A, [HL+]
+            cpu->setRegister(in.op2, (u16)(reg_value + 1));
+        else if (cpu->getOpcode() == 0x3A) // LD A, [HL-]
+            cpu->setRegister(in.op2, (u16)(reg_value - 1));
+
+        cpu->setRegister(in.op1, value);
+    }
+    else if (in.operation == R16_TO_IMM16)
+    {
+        u16 reg_value = cpu->getRegister(in.op2);
+        bus_write16(cpu->getFetchedData(), reg_value);
+    }
+    else if (in.operation == R8_TO_IMM16)
+    {
+        u8 reg_value = cpu->getRegister(in.op2);
+        bus_write(cpu->getFetchedData(), reg_value);
+    }
+    else if (in.operation == R8_TO_MEM_R16)
+    {
+        u16 register_pointer = cpu->getRegister(*(Registers *)&in.op1);
+        if (cpu->getOpcode() == 0x22)
+            cpu->setRegister(in.op1, (u16)(register_pointer + 1));
+        else if (cpu->getOpcode() == 0x32)
+            cpu->setRegister(in.op1, (u16)(register_pointer - 1));
+
+        bus_write(register_pointer, cpu->getFetchedData());
+    }
+    else if (in.operation == R16_to_R16)
+    {
+        u16 value = cpu->getRegister(in.op2);
+        if (cpu->getOpcode() == 0xF8)
+        { // LD HL, SP+e8
+            int8_t imm8 = read_8bit_address(cpu->getFetchedData());
+            u8 lower = (u8)value;
+            value += imm8;
+            cpu->setFlag(ZERO_FLAG, false);
+            cpu->setFlag(SUB_FLAG, false);
+            cpu->setFlag(HC_FLAG, ((lower & 0xf) + (imm8 & 0xf) + (cpu->getRegister(SP) & 0xf)) > 0xf);
+            cpu->setFlag(CARRY_FLAG, (u16)(lower + (u8)imm8) > 0xff);
+        }
+        cpu->setRegister(in.op1, (u16)value);
+    }
+    else if (in.operation == R8_TO_R8)
+    {
+        cpu->setRegister(in.op1, cpu->getRegister(in.op2));
+    }
+
+    timer->update_timer(in.cycles);
+}
+
+void execute_ldh()
+{
+    InstructionSet in = cpu->getInstruction();
+    if (cpu->getOpcode() == 0xF0)
+    { // LDH A, [A8]
+
+        cpu->setRegister(in.op1, cpu->getFetchedData());
+    }
+    else if (cpu->getOpcode() == 0xE0)
+    { // LDH [A8],A
+        u8 data = cpu->getRegister(in.op2);
+        bus_write(cpu->getFetchedData(), data);
+    }
+    else if (cpu->getOpcode() == 0xE2)
+    { // LDH [C], A
+        u8 data = cpu->getRegister(in.op2);
+        u8 offset = cpu->getRegister(in.op1);
+        u16 bus_addr = 0xFF00 + offset;
+        bus_write(bus_addr, data);
+    }
+    else if (cpu->getOpcode() == 0xF2)
+    { // LDH A, [C]
+        u8 offset = cpu->getRegister(in.op2);
+        u16 bus_addr = 0xFF00 + offset;
+        u8 data = read_u8bit_address(bus_addr);
+        cpu->setRegister(in.op1, data);
+    }
+    timer->update_timer(in.cycles);
+}
+
 void execute_cpl()
 {
     InstructionSet in = cpu->getInstruction();
@@ -866,8 +969,8 @@ ProcessorFunc processor[0x100] = {[NOP] = execute_none,
                                   [POP] = execute_pop,
                                   [INC] = execute_inc,
                                   [OR] = execute_or,
-                                  [LD] = execute_none,
-                                  [LDH] = execute_none,
+                                  [LD] = execute_load,
+                                  [LDH] = execute_ldh,
                                   [SUB] = execute_sub,
                                   [RRA] = execute_rra,
                                   [RLCA] = execute_rlca,
@@ -896,7 +999,8 @@ ProcessorFunc processor[0x100] = {[NOP] = execute_none,
                                   [RRCA] = execute_rrca,
                                   [HALT] = execute_halt,
                                   [INT_TIMER] = int_timer_handler,
-                                  [INT_LCD] = int_lcd_handler
+                                  [INT_LCD] = int_lcd_handler,
+                                  [INT_VBLANK] = int_vblank_handler
 
 };
 

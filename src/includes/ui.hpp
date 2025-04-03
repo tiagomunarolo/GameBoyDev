@@ -15,22 +15,22 @@ static unsigned long DARK_GRAY = 0xFF555555;
 static unsigned long BLACK = 0xFF000000;
 const int SCALE = 3;
 
-static unsigned long tile_colors[4] = {WHITE, LIGHT_GRAY, DARK_GRAY, BLACK};
+static unsigned long COLORS[4] = {WHITE, LIGHT_GRAY, DARK_GRAY, BLACK};
+
+static SDL_Window *window;
+static SDL_Renderer *renderer;
+static SDL_Surface *screen;
+static SDL_Texture *texture;
+#ifdef DEBUG_UI
+static SDL_Window *debug_window;
+static SDL_Renderer *debug_renderer;
+static SDL_Surface *debug_screen;
+static SDL_Texture *debug_texture;
+#endif
 
 class UI
 {
 private:
-    //  windows, renderers and surfaces
-    SDL_Window *window;
-    SDL_Renderer *renderer;
-    SDL_Surface *screen;
-    SDL_Texture *texture;
-#ifdef DEBUG_UI
-    SDL_Window *debug_window;
-    SDL_Renderer *debug_renderer;
-    SDL_Surface *debug_screen;
-    SDL_Texture *debug_texture;
-#endif
 #ifdef DEBUG_UI
     void update_dbg_window();
 #endif

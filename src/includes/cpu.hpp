@@ -41,7 +41,6 @@ private:
   void execute_instruction();
   void call_interruption();
   void check_timer_overflow();
-  void execute_step();
 
 public:
   CPU(Memory *mem);

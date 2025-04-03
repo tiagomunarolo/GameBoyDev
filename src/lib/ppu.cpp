@@ -19,16 +19,11 @@ u8 reverse_bit_x(u8 value)
     return update;
 }
 
-static void updatePixelsColors(u8 high, u8 low, u8 pallete, Pixels &p)
+static unsigned long getColor(u8 high, u8 low, u8 pallete, int x)
 {
-    for (int bit = 0; bit <= 7; bit++)
-    {
-        bool hi = !!(high & (1 << bit));
-        bool lo = !!(low & (1 << bit));
-        u8 color_id = (hi << 1 | lo);
-        p.colors[7 - bit] = color_id & 0b11;
-        p.palleteColors[7 - bit] = pallete;
-    }
+    x = x % 8;
+    u8 color_id = (((high >> (7 - x)) & 0x01) << 1) | (((low >> (7 - x)) & 0x01));
+    return COLORS[((pallete >> (color_id * 2))) & 0x03];
 }
 
 Sprite::Sprite(u8 y_pos, u8 x_pos, u8 tile_id, u8 attributes)
@@ -51,6 +46,7 @@ PixelProcessingUnit::PixelProcessingUnit(Memory *mem)
     this->current_dot = 0;
     // current pixel x position
     this->pixel_x = 0;
+    this->internalWy = 0;
     // LCD
     mem->io[0x40] = 0x91;
     mem->io[0x41] = 0x81;
@@ -116,7 +112,7 @@ u16 PixelProcessingUnit::getWindowTileMap()
 bool PixelProcessingUnit::IsWindowFrameEnabled()
 {
     // BIT 5
-    return (*this->lcdc & 0x20) && (*this->lcdc & 0b1);
+    return (*this->lcdc & 0x20);
 }
 
 u16 PixelProcessingUnit::getTileArea()
@@ -155,6 +151,14 @@ u8 PixelProcessingUnit::GetObjSize()
 void PixelProcessingUnit::UpdateLy()
 {
     *this->ly += 1;
+    this->pixel_x = 0;
+    if (this->IsWindowFrameEnabled() &&
+        this->GetLy() > this->getWY() && this->getWY() >= 0 &&
+        this->getWY() <= 143 && this->getWX() >= 7 && this->getWX() <= 166)
+    {
+        this->internalWy = internalWy + 1;
+    }
+
     if (*this->ly == *this->lyc)
         *this->stat |= 0b00000010;
     else
@@ -244,14 +248,17 @@ void PixelProcessingUnit::runOamMode()
 void PixelProcessingUnit::runRenderMode()
 {
     this->mode = RenderingMode;
-    if (this->IsLcdOn() && this->GetLy() >= 0 && this->GetLy() <= 143)
-        ui->update(this->GetLy() == 143);
     *this->stat = ((*this->stat & 0xFC) | 0x3);
+    if (this->IsLcdOn() && this->GetLy() >= 0 && this->GetLy() <= 143)
+        ui->update(this->current_dot == 252 && this->GetLy() == 143);
 }
 void PixelProcessingUnit::runVblankMode()
 {
+    if (*this->ly == 144)
+        interruption->setInterruption(VBlank);
     this->mode = VBlankMode;
     *this->stat = ((*this->stat & 0xFC) | 0x1);
+    this->internalWy = 0; // internal window line counter is reset on Vblank
 }
 
 void PixelProcessingUnit::runHblankMode()
@@ -284,8 +291,8 @@ Pixels PixelProcessingUnit::getBackgroundPixels()
         high_byte = memory->vram[tile_data_addr + tile_row + 1];
         low_byte = memory->vram[tile_data_addr + tile_row];
     }
-    Pixels pixels = {this->pixel_x, y, false};
-    updatePixelsColors(high_byte, low_byte, this->getBackgroundWindowPallete(), pixels);
+    Pixels pixels = {this->pixel_x, y, 0, false};
+    pixels.color = getColor(high_byte, low_byte, getBackgroundWindowPallete(), this->pixel_x);
     return pixels;
 }
 
@@ -297,12 +304,12 @@ Pixels PixelProcessingUnit::getWindowPixels()
 
     // Window only starts rendering at WY, and WX must be visible
     if (y < wy || wx >= SCREEN_WIDTH_DEFAULT || wx < 0 || this->pixel_x < wx)
-        return Pixels{-1, -1, false, {0}, {0}};
+        return Pixels{-1, -1, 0, false};
 
     u16 window_map_addr = this->getWindowTileMap(); // Window tile map base address
     u16 tile_area = this->getTileArea();            // Tile data base address
 
-    int row = ((y - wy) / 8) % 32;             // Current tile row in the window
+    int row = (this->internalWy / 8) % 32;     // Current tile row in the window is based on internal window counter
     int col = ((this->pixel_x - wx) / 8) % 32; // Current tile column in the window
 
     u16 tile_index = window_map_addr + (row * 32) + col;   // Correct tile index
@@ -314,11 +321,11 @@ Pixels PixelProcessingUnit::getWindowPixels()
     else
         tile_data_addr = 0x9000 + (int8_t)tile_reference * 16 - 0x8000;
 
-    int tile_row = 2 * ((y - wy) % 8); // Line inside the tile (2 bytes per row)
+    int tile_row = 2 * (this->internalWy % 8); // Line inside the tile (2 bytes per row)
     u8 high_byte = memory->vram[tile_data_addr + tile_row + 1];
     u8 low_byte = memory->vram[tile_data_addr + tile_row];
-    Pixels pixels = {this->pixel_x, y, false};
-    updatePixelsColors(high_byte, low_byte, this->getBackgroundWindowPallete(), pixels);
+    Pixels pixels = {this->pixel_x, y, 0, false};
+    pixels.color = getColor(high_byte, low_byte, getBackgroundWindowPallete(), this->pixel_x);
     return pixels;
 }
 
@@ -360,8 +367,6 @@ Pixels PixelProcessingUnit::getObjectsPixels()
         // priority bit
         // 0 = obj is drawn over bg and window
         // 1 = obj is drawn below bg
-        if (sprite.attributes & 0x80)
-            continue;
 
         // off screen sprite
         if (sprite.x_pos == 0 || sprite.x_pos >= 168)
@@ -374,6 +379,7 @@ Pixels PixelProcessingUnit::getObjectsPixels()
         bool y_fliped = (sprite.attributes >> 6) & 0x1;
         bool x_fliped = (sprite.attributes >> 5) & 0x1;
         u8 pallete = this->getObjPallete((sprite.attributes >> 4) & 0x01);
+
         int tile_pos = 0, pos = 0;
         pos = tile_pos = (ly % objSize);
         int tile_id = sprite.tile_id * 16;
@@ -394,41 +400,39 @@ Pixels PixelProcessingUnit::getObjectsPixels()
             low_byte = reverse_bit_x(low_byte);
             high_byte = reverse_bit_x(high_byte);
         }
-        Pixels pixels = {this->pixel_x, ly, false};
+        Pixels pixels = {this->pixel_x, ly, 0, false};
         pixels.bg_window_priority = (sprite.attributes & 0x80) != 0;
-        updatePixelsColors(high_byte, low_byte, pallete, pixels);
+        pixels.color = getColor(high_byte, low_byte, pallete, this->pixel_x);
         return pixels;
     }
-    return Pixels{-1, -1, false, {0}, {0}};
+    return Pixels{-1, -1, 0, false};
 }
 
 Pixels PixelProcessingUnit::getPixels()
 {
-    Pixels pixels, bgPixels;
-    pixels = bgPixels = this->getBackgroundPixels();
-    Pixels objPixels = Pixels{-1, -1, false, {0}, {0}};
-    Pixels windowPixels = Pixels{-1, -1, false, {0}, {0}};
-    if (this->IsWindowFrameEnabled())
+    Pixels pixels = this->getBackgroundPixels();
+    Pixels windowPixels = this->getWindowPixels();
+    Pixels objPixels = this->getObjectsPixels();
+    if (IsWindowFrameEnabled() && windowPixels.x != -1 && windowPixels.y != -1)
     {
-        windowPixels = this->getWindowPixels();
-        if (windowPixels.x != -1 && windowPixels.y != -1)
-            for (int i = 0; i < 8; i++)
-                pixels.colors[i] = windowPixels.colors[i];
+        pixels.color = windowPixels.color;
     }
 
-    if (this->IsObjEnable())
+    if (IsObjEnable() && objPixels.x != -1 && objPixels.y != -1)
     {
-        objPixels = this->getObjectsPixels();
-        if (objPixels.x != -1 && objPixels.y != -1)
+        if (objPixels.bg_window_priority)
         {
-            for (int i = 0; i < 8; i++)
-            {
-                pixels.colors[i] = objPixels.colors[i] ? objPixels.colors[i] : pixels.colors[i];
-                pixels.palleteColors[i] = objPixels.colors[i] ? objPixels.palleteColors[i] : pixels.palleteColors[i];
-            }
+            if (pixels.color == WHITE)
+                pixels.color = objPixels.color;
+        }
+        else
+        {
+            if (objPixels.color != WHITE)
+                pixels.color = objPixels.color;
         }
     }
-    this->pixel_x = (this->pixel_x + 8) % SCREEN_WIDTH_DEFAULT;
+
+    this->pixel_x = (this->pixel_x + 1) % SCREEN_WIDTH_DEFAULT;
     return pixels;
 }
 

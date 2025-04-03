@@ -5,44 +5,30 @@ using namespace std;
 
 void imm16_to_r16(u16 addreess)
 { // Handle IMM16_TO_R16
-    InstructionSet in = cpu->getInstruction();
     u16 value = read_u16bit_address(addreess);
-    cpu->setRegister(in.op1, value);
+    cpu->setFetchedData(value);
 }
 
 void imm8_to_r16(u16 addreess)
 { // Handle IMM16_TO_R16
-    InstructionSet in = cpu->getInstruction();
     if (cpu->getOpcode() == 0xE8)
     { // ADD SP, E8
         cpu->setFetchedData(read_8bit_address(addreess));
         return;
     }
-    u8 value = read_u8bit_address(addreess);
-    u16 reg_pointer = cpu->getRegister(in.op1);
-    bus_write(reg_pointer, value);
+    cpu->setFetchedData(read_u8bit_address(addreess));
 }
 
 void imm8_to_r8(u16 addreess)
 { // Handle IMM16_TO_R16
-    InstructionSet in = cpu->getInstruction();
-    if (in.mnemonic == LD)
-    {
-        u8 value = read_u8bit_address(addreess);
-        cpu->setRegister(in.op1, value);
-    }
-    else
-    {
-        cpu->setFetchedData(read_u8bit_address(addreess));
-    }
+    cpu->setFetchedData(read_u8bit_address(addreess));
 }
 
 void mem_imm16_to_r8(u16 addreess)
 { // Handle IMM16_TO_R16
-    InstructionSet in = cpu->getInstruction();
     u16 imm16 = read_u16bit_address(addreess);
     u8 content = read_8bit_address(imm16);
-    cpu->setRegister(in.op1, content);
+    cpu->setFetchedData(content);
 }
 
 void mem_reg16_to_r8()
@@ -50,11 +36,7 @@ void mem_reg16_to_r8()
     InstructionSet in = cpu->getInstruction();
     u16 reg_value = cpu->getRegister(in.op2);
     u8 value = read_8bit_address(reg_value);
-    if (cpu->getOpcode() == 0x2A) // LD A, [HL+]
-        cpu->setRegister(in.op2, (u16)(reg_value + 1));
-    else if (cpu->getOpcode() == 0x3A) // LD A, [HL-]
-        cpu->setRegister(in.op2, (u16)(reg_value - 1));
-    else if (cpu->getOpcode() == 0xBE)
+    if (cpu->getOpcode() == 0xBE)
     { // CP A, [HL]
         cpu->setFetchedData(read_u8bit_address(reg_value));
         return;
@@ -89,82 +71,46 @@ void mem_reg16_to_r8()
         cpu->setFetchedData(value);
         return;
     }
-    cpu->setRegister(in.op1, value);
 }
 
 void reg16_to_imm16(u16 addreess)
 { // Handle IMM16_TO_R16
-    InstructionSet in = cpu->getInstruction();
-    u16 imm16 = read_u16bit_address(addreess);
-    u16 reg_value = cpu->getRegister(in.op2);
-    bus_write16(imm16, reg_value);
+    cpu->setFetchedData(read_u16bit_address(addreess));
 }
 
 void r8_to_imm16(u16 addreess)
 { // Handle IMM16_TO_R16
-    InstructionSet in = cpu->getInstruction();
-    u16 imm16 = read_u16bit_address(addreess);
-    u8 reg_value = cpu->getRegister(in.op2);
-    bus_write(imm16, reg_value);
+    cpu->setFetchedData(read_u16bit_address(addreess));
 }
 
 void r8_to_mem_reg16()
 { // Handle IMM16_TO_R16
     InstructionSet in = cpu->getInstruction();
-    u16 register_pointer = cpu->getRegister(*(Registers *)&in.op1);
     if (cpu->getOpcode() == 0x22)
-    { // ld [hl+], a
-        bus_write(register_pointer, cpu->getRegister(A));
-        cpu->setRegister(in.op1, (u16)(register_pointer + 1));
-    }
+        cpu->setFetchedData(cpu->getRegister(A));
     else if (cpu->getOpcode() == 0x32)
-    { // ld [hl-], a
-        bus_write(register_pointer, cpu->getRegister(A));
-        cpu->setRegister(in.op1, (u16)(register_pointer - 1));
-    }
+        cpu->setFetchedData(cpu->getRegister(A));
     else
-        bus_write(register_pointer, cpu->getRegister(in.op2));
+        cpu->setFetchedData(cpu->getRegister(in.op2));
 }
 
 void high_mem_load(u16 addreess)
 { // Handle IMM16_TO_R16
-    InstructionSet in = cpu->getInstruction();
     u8 imm = read_u8bit_address(addreess);
     if (cpu->getOpcode() == 0xF0)
     { // LDH A, [A8]
         u16 bus_addr = 0xFF00 + imm;
         u8 value = read_u8bit_address(bus_addr);
-        cpu->setRegister(in.op1, value);
+        cpu->setFetchedData(value);
     }
     else if (cpu->getOpcode() == 0xE0)
-    { // LDH [A8],A
-        u16 bus_addr = 0xFF00 + imm;
-        u8 data = cpu->getRegister(in.op2);
-        bus_write(bus_addr, data);
-    }
-    else if (cpu->getOpcode() == 0xE2)
-    { // LDH [C], A
-        u8 data = cpu->getRegister(in.op2);
-        u8 offset = cpu->getRegister(in.op1);
-        u16 bus_addr = 0xFF00 + offset;
-        bus_write(bus_addr, data);
-    }
-    else if (cpu->getOpcode() == 0xF2)
-    { // LDH A, [C]
-        u8 offset = cpu->getRegister(in.op2);
-        u16 bus_addr = 0xFF00 + offset;
-        u8 data = read_u8bit_address(bus_addr);
-        cpu->setRegister(in.op1, data);
-    }
+        cpu->setFetchedData(0xFF00 + imm);
 }
 
 void r8_to_r8()
 { // Handle IMM16_TO_R16
     InstructionSet in = cpu->getInstruction();
-    if (in.mnemonic == LD)
-        cpu->setRegister(in.op1, cpu->getRegister(in.op2));
-    else
-        cpu->setFetchedData(cpu->getRegister(in.op2));
+    cpu->setFetchedData(cpu->getRegister(in.op2));
 }
 
 void jump_call(u16 addreess)
@@ -218,23 +164,9 @@ void r16_to_r16(u16 addreess)
 { // Handle IMM16_TO_R16
     InstructionSet in = cpu->getInstruction();
     u16 value = cpu->getRegister(in.op2);
-    if (in.mnemonic != LD)
-    {
-        cpu->setFetchedData(value);
-        return;
-    }
-
+    cpu->setFetchedData(value);
     if (cpu->getOpcode() == 0xF8)
-    { // LD HL, SP+e8
-        int8_t imm8 = read_8bit_address(addreess);
-        u8 lower = (u8)value;
-        value += imm8;
-        cpu->setFlag(ZERO_FLAG, false);
-        cpu->setFlag(SUB_FLAG, false);
-        cpu->setFlag(HC_FLAG, ((lower & 0xf) + (imm8 & 0xf) + (cpu->getRegister(SP) & 0xf)) > 0xf);
-        cpu->setFlag(CARRY_FLAG, (u16)(lower + (u8)imm8) > 0xff);
-    }
-    cpu->setRegister(in.op1, (u16)value);
+        cpu->setFetchedData(addreess);
 }
 
 void control_instruction()

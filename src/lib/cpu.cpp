@@ -4,6 +4,7 @@
 #include "fetch_data.hpp"
 #include "mnemonics.hpp"
 #include "interruption.hpp"
+#include "serial.hpp"
 #include "timer.hpp"
 #include "ppu.hpp"
 #include <chrono>
@@ -321,21 +322,7 @@ void CPU::call_interruption()
   this->execute_instruction();
 
   // Restore the original instruction state
-  this->current_instruction.mnemonic = saved.mnemonic;
-}
-
-// Executes a single step in the CPU cycle
-void CPU::execute_step()
-{
-  // If an interruption is pending, handle it first
-  if (this->getIME() && interruption->hasPendingInterruption())
-  {
-    this->call_interruption();
-    return;
-  }
-
-  // Otherwise, execute the next instruction
-  this->execute_instruction();
+  this->current_instruction = saved;
 }
 
 void CPU::run()
@@ -346,32 +333,35 @@ void CPU::run()
   {
     while (this->running)
     {
-
+      if (this->getIME() && interruption->hasPendingInterruption())
+      {
+        this->setHalt(false); // unset halt
+        this->call_interruption();
+      }
+      serial->output_serial_data();
       // IME takes one instruction to be enabled
       bool oldImeDisabled = this->getIME() == false;
 
-      // CPU cycle
-      while (this->isHalted() && !interruption->hasPendingInterruption())
-      { // sleep for a while
+      // If halted, run for one cycle
+      if (this->isHalted() && !interruption->hasPendingInterruption())
+      {
         timer->update_timer(1);
-        if (ppu->IsLcdOn())
-          ppu->run();
+        ppu->run();
+        continue;
       }
-
       this->setHalt(false);      // unset halt
       this->fetch_instruction(); // fetch next instrction
 #ifdef DEBUG_CPU
       debug_memory_and_registers();
 #endif
-      this->fetch_data();   // fetch required data from memory
-      this->execute_step(); // process operation
+      this->fetch_data();          // fetch required data from memory
+      this->execute_instruction(); // process operation
       if (this->getIME() && oldImeDisabled)
       {
         this->setIME(false); // ime is enabled only on next instruction
         this->setImePC = this->getPC();
       }
-      if (ppu->IsLcdOn())
-        ppu->run();
+      ppu->run();
       if (this->setImePC && this->getOldPC() == this->setImePC)
       {
         this->setImePC = 0;

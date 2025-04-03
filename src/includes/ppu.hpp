@@ -28,11 +28,10 @@ public:
 
 typedef struct Pixels
 {
-    int x = 0;                       // x position
-    int y = 0;                       // y position
-    bool bg_window_priority = false; // indicates if the pixel from background/window has higher priority
-    u8 colors[8] = {0};              // colors of each pixel
-    u8 palleteColors[8] = {0};          // palette colors each pixel
+    int x = 0;               // x position
+    int y = 0;               // y position
+    unsigned long color;     // pixel color
+    bool bg_window_priority; // bg has higher priority?
 } Pixels;
 
 class PixelProcessingUnit
@@ -50,6 +49,7 @@ private:
     u8 *obp01;
     u8 *wx;
     u8 *wy;
+    u8 internalWy;
     PpuMode mode;
     int cycles;
     u16 current_dot;
