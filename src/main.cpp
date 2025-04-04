@@ -3,7 +3,6 @@
 #ifdef UI_ENABLED
 #include "ui.hpp"
 #endif
-#include <SDL.h>
 #include <thread>
 
 using namespace std;
@@ -19,7 +18,6 @@ void main_loop()
     {
         ui->check_event();
         ui->update();
-        SDL_Delay(1);
     }
     ui->quit();
     cpu->stop();

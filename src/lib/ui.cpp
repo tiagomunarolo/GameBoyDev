@@ -132,8 +132,12 @@ void UI::update_dbg_window()
 
 void UI::update()
 {
-    if (!ppu->allowRender())
+    if (!ppu->isRendering() || ppu->getLy() != SCREEN_HEIGHT_DEFAULT - 1)
+    {
+        if (ppu->isRendering())
+            ppu->finishRendering(); // unblock cpu/ppu
         return;
+    }
 
     Uint32 current_time = SDL_GetTicks();
     // get all pixels from current scanline
@@ -154,8 +158,7 @@ void UI::update()
         frame_count = 0;
         start_time = current_time;
     }
-
-    ppu->unblock();
+    ppu->finishRendering();
 
 #ifdef DEBUG_UI
     update_dbg_window();

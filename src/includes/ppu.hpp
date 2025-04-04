@@ -53,8 +53,6 @@ private:
     u8 internalWy;
     PpuMode mode;
     int cycles;
-    int cyclesRender;
-    bool rendering = false;
     u16 current_dot;
     int pixel_x;
     u8 getObjectSize();
@@ -100,9 +98,9 @@ public:
     // Sync PPU cycles with internal timer
     void setCycles(u8 value);
     // flag to allow Rendering
-    bool allowRender();
+    bool isRendering();
     // unset rendering flag
-    void unblock();
+    void finishRendering();
     // Get current LY
     u8 getLy();
 };

@@ -324,6 +324,7 @@ void CPU::run()
     while (this->running)
     {
       // IME takes one instruction to be enabled
+      ppu->run();
       bool oldImeDisabled = this->getIME() == false;
       if (this->getIME() && interruption->hasPendingInterruption())
       {
@@ -351,7 +352,6 @@ void CPU::run()
         this->setIME(false); // ime is enabled only on next instruction
         this->setImePC = this->getPC();
       }
-      ppu->run();
       if (this->setImePC && this->getOldPC() == this->setImePC)
       {
         this->setImePC = 0;

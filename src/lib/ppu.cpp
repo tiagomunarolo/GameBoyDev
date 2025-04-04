@@ -8,6 +8,7 @@ using namespace std;
 
 static const int MAX_SCANLINES = 154;
 static const int DOTS_PER_LINE = 456;
+static int vblank_lines = 0;
 
 u8 reverse_bit_x(u8 value)
 {
@@ -170,9 +171,6 @@ void PixelProcessingUnit::updateLy()
     // set interruption flag register FF0F
     if (*this->stat & 0x40 && *this->ly == *this->lyc)
         interruption->setInterruption(LCD);
-
-    if (getLy() == 143)
-        rendering = true;
 }
 
 u8 PixelProcessingUnit::getLy()
@@ -212,23 +210,20 @@ u8 PixelProcessingUnit::getWY()
     return *this->wy;
 }
 
-bool PixelProcessingUnit::allowRender()
+bool PixelProcessingUnit::isRendering()
 {
-    return this->rendering;
+    return this->mode == RenderingMode;
 }
 
-void PixelProcessingUnit::unblock()
+void PixelProcessingUnit::finishRendering()
 {
-    this->rendering = false;
+    this->mode = HBlankMode;
 }
 
 void PixelProcessingUnit::setCycles(u8 value)
 {
-    if (this->IsLcdOn())
-    {
-        this->cycles += value;
-        this->cyclesRender += cycles;
-    }
+
+    this->cycles += value;
 }
 
 u8 PixelProcessingUnit::getBackgroundWindowPallete()
@@ -256,29 +251,65 @@ void PixelProcessingUnit::runOamMode()
         this->sprites[i].attributes = mem->oam[4 * i + 3];
     }
 
-    this->cycles -= 79;
-    this->current_dot = 80;
+    this->cycles -= 80;
+    this->current_dot += 80;
+    this->mode = RenderingMode;
 }
 
 void PixelProcessingUnit::runRenderMode()
 {
-    this->mode = RenderingMode;
     *this->stat = ((*this->stat & 0xFC) | 0x3);
-    this->current_dot = 252;
+    while (this->mode == RenderingMode)
+        ;
+    this->current_dot += 172; // minimum duration of mode 3
+    this->mode = HBlankMode;
+    this->current_dot += cycles;
+    this->cycles = 0;
 }
+
 void PixelProcessingUnit::runVblankMode()
 {
+    if (this->cycles < DOTS_PER_LINE)
+        return;
+
+    this->cycles -= DOTS_PER_LINE;
+    vblank_lines += 1;
+
+    if (vblank_lines == 10 || vblank_lines == MAX_SCANLINES)
+    {
+        this->mode = OAMScanMode;
+        vblank_lines = 0;
+        *this->ly = 0;
+        this->current_dot = 0;
+    }
+
     if (*this->ly == 144)
         interruption->setInterruption(VBlank);
-    this->mode = VBlankMode;
     *this->stat = ((*this->stat & 0xFC) | 0x1);
     this->internalWy = 0; // internal window line counter is reset on Vblank
+    this->updateLy();
 }
 
 void PixelProcessingUnit::runHblankMode()
 {
-    this->mode = HBlankMode;
     *this->stat = (*this->stat & 0xFC);
+    this->pixel_x = 0; // set pixel x to 0
+    this->current_dot += this->cycles;
+    int diff = current_dot - cycles;
+
+    if (this->current_dot < DOTS_PER_LINE)
+    {
+        this->cycles -= diff;
+        return;
+    }
+    if (*ly == SCREEN_HEIGHT_DEFAULT - 1)
+        this->mode = VBlankMode;
+    else
+    {
+        this->current_dot = 0;
+        this->mode = OAMScanMode;
+        this->updateLy();
+    }
 }
 
 Pixels PixelProcessingUnit::getBackgroundPixels(int y)
@@ -461,43 +492,14 @@ std::vector<Pixels> PixelProcessingUnit::getPixels(int y)
 // 1 ppu dot is 4 cpu cycles
 void PixelProcessingUnit::run()
 {
-    if (!IsLcdOn()) // if ppu disabled
-        return;
-
-    // flag is clean after rendering, by UI
-    // sleep for 1ms to avoid cpu overload
-    while (this->rendering)
-        std::this_thread::sleep_until(std::chrono::system_clock::now() + std::chrono::milliseconds(1));
-
-    while (this->cycles > 0)
-    {
-        if (this->getLy() >= SCREEN_HEIGHT_DEFAULT)
-            this->runVblankMode();
-        else
-        {
-            if (this->current_dot <= 80)
-                this->runOamMode();
-            else if (this->current_dot <= 252)
-                this->runRenderMode();
-            else
-                this->runHblankMode();
-        }
-        // run OAM scan only once, avoid unecessary work
-        if (this->mode == OAMScanMode && this->current_dot < 80)
-            return;
-
-        // decrement current cycle control
-        this->cycles -= 1;
-        // every 4cpu ticks, advances 1 dot
-        this->current_dot += 1;
-        if (this->current_dot == DOTS_PER_LINE)
-        {
-            this->current_dot = 0;
-            this->updateLy();
-            if (this->getLy() >= MAX_SCANLINES)
-                *this->ly = 0;
-        }
-    }
+    if (mode == VBlankMode)
+        this->runVblankMode();
+    else if (mode == OAMScanMode)
+        this->runOamMode();
+    else if (mode == RenderingMode)
+        this->runRenderMode();
+    else
+        this->runHblankMode();
 }
 
 PixelProcessingUnit *ppu = nullptr;

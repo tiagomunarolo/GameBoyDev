@@ -1,5 +1,6 @@
 #include "bus.hpp"
 #include "ppu.hpp"
+#include "timer.hpp"
 // 0x0000 - 0x3FFF : ROM Bank 0
 // 0x4000 - 0x7FFF : ROM Bank 1 - Switchable
 // 0x8000 - 0x9FFF : VRAM
@@ -18,42 +19,42 @@ using namespace std;
 
 u8 read_u8bit_address(u16 address)
 {
-    if (address <= 0x3FFF)
+    if (address >= 0 && address <= 0x3FFF)
     { // rom bank 0
         return memory->rom[address];
     }
-    else if (address <= 0x7FFF)
+    else if (address >= 0x4000 && address <= 0x7FFF)
     { // rom bank 1 switchable
         u8 current_bank = memory->rom_bank1;
         u16 addr = (current_bank * 0x4000) + (address - 0x4000);
         return memory->rom[addr];
     }
-    else if (address <= 0x9FFF)
+    else if (address >= 0x8000 && address <= 0x9FFF)
     { // video ram
         // inaccesible
         // if (ppu->GetPpuMode() == RenderingMode)
         //     return 0xFF;
         return memory->vram[address - 0x8000];
     }
-    else if (address <= 0xBFFF)
+    else if (address >= 0xA000 && address <= 0xBFFF)
     {
         if (!memory->ram_enable)
             return 0xff;
         return memory->external_ram[address - 0xA000];
     }
-    else if (address <= 0xCFFF)
+    else if (address >= 0xC000 && address <= 0xCFFF)
     { // wram 0
         return memory->wram0[address - 0xC000];
     }
-    else if (address <= 0xDFFF)
+    else if (address >= 0xD000 && address <= 0xDFFF)
     { // wram 1
         return memory->wram1[memory->current_wram1][address - 0xD000];
     }
-    else if (address <= 0xFDFF)
+    else if (0xE000 <= address && address <= 0xFDFF)
     { // echo ram
         return memory->wram0[address - 0xC000];
     }
-    else if (address <= 0xFE9F)
+    else if (address >= 0xFE00 && address <= 0xFE9F)
     { // OAM
         // inacessible during modes 2/3
         // PpuMode mode = ppu->GetPpuMode();
@@ -61,12 +62,12 @@ u8 read_u8bit_address(u16 address)
         //     return 0xFF;
         return memory->oam[address - 0xfe00];
     }
-    else if (address <= 0xFEFF)
+    else if (address >= 0xFEA0 && address <= 0xFEFF)
     { // prohibited
         // printf("INVALID ADDRESS read: <prohibited area> [%.2x]\n", address);
         return 0x00;
     }
-    else if (address <= 0xFF7F)
+    else if (address >= 0xFF00 && address <= 0xFF7F)
     { // I/O registers
         if (address == 0xff00)
             return 0xff;
@@ -98,7 +99,7 @@ int8_t read_8bit_address(u16 address)
 
 void bus_write(u16 address, u8 value)
 {
-    if (address < 0x8000)
+    if (address >= 0 && address <= 0x7FFF)
     {
         // select current rom bank 1
         if (0x0000 <= address && address <= 0x1FFF) // 0000–1FFF — RAM enable
@@ -117,7 +118,7 @@ void bus_write(u16 address, u8 value)
             printf("UNHALLED WRITE: address=0x%.4X, value=0x%.2X\n", address, value);
         }
     }
-    else if (address <= 0x9FFF)
+    else if (address >= 0x8000 && address <= 0x9FFF)
     { // video ram
         // if ppu in mode 3, VRAM is inaccessible
         // if (ppu->GetPpuMode() == RenderingMode)
@@ -125,28 +126,28 @@ void bus_write(u16 address, u8 value)
         memory->vram[address - 0x8000] = value;
         return;
     }
-    else if (address <= 0xBFFF)
+    else if (address >= 0xA000 && address <= 0xBFFF)
     { // 8 KiB External RAM
 
         memory->external_ram[address - 0xA000] = value;
         return;
     }
-    else if (address <= 0xCFFF)
+    else if (address >= 0xC000 && address <= 0xCFFF)
     { // wram 0
         memory->wram0[address - 0xC000] = value;
         return;
     }
-    else if (address <= 0xDFFF)
+    else if (address >= 0xD000 && address <= 0xDFFF)
     { // wram 1
         memory->wram1[memory->current_wram1][address - 0xD000] = value;
         return;
     }
-    else if (address <= 0xFDFF)
+    else if (address >= 0xE000 && address <= 0xFDFF)
     { // echo ram
         memory->wram0[address - 0xC000] = value;
         return;
     }
-    else if (address <= 0xFE9F)
+    else if (address >= 0xFE00 && address <= 0xFE9F)
     { // OAM
         // inacessible during modes 2/3
         // PpuMode mode = ppu->GetPpuMode();
@@ -155,13 +156,16 @@ void bus_write(u16 address, u8 value)
         memory->oam[address - 0xfe00] = value;
         return;
     }
-    else if (address <= 0xFEFF)
+    else if (address >= 0xFEA0 && address <= 0xFEFF)
     { // prohibited
         // printf("INVALID ADDRESS WRITE: <prohibited area> [%.2x]\n", address);
         return;
     }
-    else if (address <= 0xFF7F)
+    else if (address >= 0xFF00 && address <= 0xFF7F)
     { // I/O registers
+        if (address == 0xFF40)
+            printf("");
+
         // Writing any value to this register resets it to $00
         if (address == 0xff04)
         { // timer div
@@ -183,6 +187,8 @@ void bus_write(u16 address, u8 value)
                 u16 addr = (value << 8) + i;
                 memory->oam[i] = read_u8bit_address(addr);
             }
+            // 640 cpu ticks (160m CPU cycles)
+            timer->update_timer(640);
         }
         else
         {
@@ -195,7 +201,7 @@ void bus_write(u16 address, u8 value)
         memory->hiram[address - 0xFF80] = value;
         return;
     }
-    else
+    else if (address == 0xffff)
     {
         memory->ie = value;
     }
