@@ -26,6 +26,9 @@ GB::GB(const char *rom)
     // ui
     ui = new UI();
     this->ui_ctx = ui;
+    // joypad
+    joypad = new Joypad();
+    this->joypad_ctx = joypad;
 }
 
 GB *gb = nullptr;

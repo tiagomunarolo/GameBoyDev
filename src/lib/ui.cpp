@@ -1,11 +1,19 @@
 #include "ui.hpp"
 #include "ppu.hpp"
+#include "joypad.hpp"
+#include "interruption.hpp"
+
+#include <chrono>
+#include <iostream>
+#include <thread>
 
 using namespace std;
 
 Uint32 start_time = SDL_GetTicks(); // Get start time
 int frame_count = 0;
 int FPS_DESIRED = 60;
+
+using namespace std;
 
 static void updatePixelsView(SDL_Surface *surface, std::vector<Pixels> pixels)
 {
@@ -175,8 +183,50 @@ void UI::check_event()
 {
     SDL_Event event;
     while (SDL_PollEvent(&event))
+    {
         if (event.type == SDL_QUIT || (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE))
             this->running = false;
+
+        if (event.type != SDL_KEYUP && event.type != SDL_KEYDOWN)
+            return;
+
+        bool press = !(event.type == SDL_KEYUP);
+
+        SDL_Keycode key = event.key.keysym.sym;
+
+        if (key == SDLK_DOWN)
+        {
+            joypad->pressButton(DownBtn, press);
+        }
+        else if (key == SDLK_UP)
+        {
+            joypad->pressButton(UpBtn, press);
+        }
+        else if (key == SDLK_LEFT)
+        {
+            joypad->pressButton(LeftBtn, press);
+        }
+        else if (key == SDLK_RIGHT)
+        {
+            joypad->pressButton(RightBtn, press);
+        }
+        else if (key == SDLK_a)
+        {
+            joypad->pressButton(ABtn, press);
+        }
+        else if (key == SDLK_s)
+        {
+            joypad->pressButton(BBtn, press);
+        }
+        else if (key == SDLK_p)
+        {
+            joypad->pressButton(StartBtn, press);
+        }
+        else if (key == SDLK_SPACE)
+        {
+            joypad->pressButton(SelectBtn, press);
+        }
+    }
 }
 
 void UI::quit()

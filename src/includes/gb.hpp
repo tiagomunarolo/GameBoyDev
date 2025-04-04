@@ -6,6 +6,7 @@
 #include "timer.hpp"
 #include "ui.hpp"
 #include "ppu.hpp"
+#include "joypad.hpp"
 
 using namespace std;
 
@@ -19,6 +20,7 @@ private:
   InterruptionContoller *interruption_ctx;
   TimerHanlder *timer_ctx;
   SerialHandler *serial_ctx;
+  Joypad *joypad_ctx;
 
 public:
   GB(const char *rom);

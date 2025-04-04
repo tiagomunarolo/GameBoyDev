@@ -1,6 +1,7 @@
 #include "bus.hpp"
 #include "ppu.hpp"
 #include "timer.hpp"
+#include "joypad.hpp"
 // 0x0000 - 0x3FFF : ROM Bank 0
 // 0x4000 - 0x7FFF : ROM Bank 1 - Switchable
 // 0x8000 - 0x9FFF : VRAM
@@ -70,10 +71,11 @@ u8 read_u8bit_address(u16 address)
     else if (address >= 0xFF00 && address <= 0xFF7F)
     { // I/O registers
         if (address == 0xff00)
-            return 0xff;
-        if (address == 0xff0f)
+            return joypad->read();
+        else if (address == 0xff0f)
             return memory->iflags;
-        return memory->io[address - 0xFF00];
+        else
+            return memory->io[address - 0xFF00];
     }
     else if (address >= 0xFF80 && address <= 0xFFFE)
     { // hram
@@ -163,11 +165,10 @@ void bus_write(u16 address, u8 value)
     }
     else if (address >= 0xFF00 && address <= 0xFF7F)
     { // I/O registers
-        if (address == 0xFF40)
-            printf("");
-
+        if (address == 0xff00)
+            joypad->write(value);
         // Writing any value to this register resets it to $00
-        if (address == 0xff04)
+        else if (address == 0xff04)
         { // timer div
             memory->io[0x4] = 0x00;
         }

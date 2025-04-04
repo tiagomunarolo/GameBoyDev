@@ -24,7 +24,7 @@ InterruptionType InterruptionContoller::getInterruptionType()
     else if (flags & 0b1000)
         return Serial;
     else
-        return Joypad;
+        return JoypadInt;
 }
 
 u8 InterruptionContoller::getIE()
@@ -52,7 +52,7 @@ const char *interruption_type_str(InterruptionType in)
     case Serial:
         return "Serial";
         break;
-    case Joypad:
+    case JoypadInt:
         return "Joypad";
         break;
     default:
@@ -85,7 +85,7 @@ void InterruptionContoller::unsetInterruption()
         *this->iflag = *this->iflag & ~0b01000;
         break;
     }
-    case Joypad:
+    case JoypadInt:
     {
         *this->iflag = *this->iflag & ~0b10000;
         break;
@@ -119,7 +119,7 @@ void InterruptionContoller::setInterruption(InterruptionType int_type)
         *this->iflag = *this->iflag | 0b01000;
         break;
     }
-    case Joypad:
+    case JoypadInt:
     {
         *this->iflag = *this->iflag | 0b10000;
         break;
@@ -145,7 +145,7 @@ Mnemonic InterruptionContoller::getCurrentInterruption()
     case Serial:
         return INT_SERIAL;
         break;
-    case Joypad:
+    case JoypadInt:
         return INT_JOYPAD;
         break;
     default:

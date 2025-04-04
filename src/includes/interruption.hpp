@@ -5,7 +5,7 @@
 
 enum InterruptionType
 {
-    Joypad = 4,
+    JoypadInt = 4,
     Serial = 3,
     Timer = 2,
     LCD = 1,

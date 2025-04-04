@@ -77,6 +77,13 @@ void int_vblank_handler()
     push_stack(cpu->getSP(), cpu->getPC());
     cpu->setPC(0x40);
 }
+
+void int_joypad_handler()
+{
+    push_stack(cpu->getSP(), cpu->getPC());
+    cpu->setPC(0x60);
+}
+
 // Function for CP instruction
 void execute_compare()
 {
@@ -939,53 +946,55 @@ void execute_halt()
     timer->update_timer(in.cycles);
 }
 
-ProcessorFunc processor[0x100] = {[NOP] = execute_none,
-                                  [CP] = execute_compare,
-                                  [CALL] = execute_call,
-                                  [JP] = execute_jump,
-                                  [RET] = execute_ret,
-                                  [DI] = execute_di,
-                                  [EI] = execute_ei,
-                                  [XOR] = execute_xor,
-                                  [DEC] = execute_dec,
-                                  [JR] = execute_jr,
-                                  [ADD] = execute_add,
-                                  [PUSH] = execute_push,
-                                  [POP] = execute_pop,
-                                  [INC] = execute_inc,
-                                  [OR] = execute_or,
-                                  [LD] = execute_load,
-                                  [LDH] = execute_ldh,
-                                  [SUB] = execute_sub,
-                                  [RRA] = execute_rra,
-                                  [RLCA] = execute_rlca,
-                                  [RLC] = execute_rlc,
-                                  [RRC] = execute_rrc,
-                                  [ADC] = execute_adc,
-                                  [STOP] = execute_none,
-                                  [RETI] = execute_ret,
-                                  [AND] = execute_and,
-                                  [SRL] = execute_prefix_srl,
-                                  [BIT] = execute_prefix_bit,
-                                  [SET] = execute_prefix_set,
-                                  [RES] = execute_prefix_res,
-                                  [SWAP] = execute_prefix_swap,
-                                  [RR] = execute_prefix_rr,
-                                  [SLA] = execute_prefix_sla,
-                                  [SRA] = execute_prefix_sra,
-                                  [RL] = execute_prefix_rl,
-                                  [DAA] = execute_daa,
-                                  [SBC] = execute_sbc,
-                                  [RST] = execute_rst,
-                                  [CPL] = execute_cpl,
-                                  [SCF] = execute_scf,
-                                  [CCF] = execute_ccf,
-                                  [RLA] = execute_rla,
-                                  [RRCA] = execute_rrca,
-                                  [HALT] = execute_halt,
-                                  [INT_TIMER] = int_timer_handler,
-                                  [INT_LCD] = int_lcd_handler,
-                                  [INT_VBLANK] = int_vblank_handler
+ProcessorFunc processor[0x100] = {
+    [NOP] = execute_none,
+    [CP] = execute_compare,
+    [CALL] = execute_call,
+    [JP] = execute_jump,
+    [RET] = execute_ret,
+    [DI] = execute_di,
+    [EI] = execute_ei,
+    [XOR] = execute_xor,
+    [DEC] = execute_dec,
+    [JR] = execute_jr,
+    [ADD] = execute_add,
+    [PUSH] = execute_push,
+    [POP] = execute_pop,
+    [INC] = execute_inc,
+    [OR] = execute_or,
+    [LD] = execute_load,
+    [LDH] = execute_ldh,
+    [SUB] = execute_sub,
+    [RRA] = execute_rra,
+    [RLCA] = execute_rlca,
+    [RLC] = execute_rlc,
+    [RRC] = execute_rrc,
+    [ADC] = execute_adc,
+    [STOP] = execute_none,
+    [RETI] = execute_ret,
+    [AND] = execute_and,
+    [SRL] = execute_prefix_srl,
+    [BIT] = execute_prefix_bit,
+    [SET] = execute_prefix_set,
+    [RES] = execute_prefix_res,
+    [SWAP] = execute_prefix_swap,
+    [RR] = execute_prefix_rr,
+    [SLA] = execute_prefix_sla,
+    [SRA] = execute_prefix_sra,
+    [RL] = execute_prefix_rl,
+    [DAA] = execute_daa,
+    [SBC] = execute_sbc,
+    [RST] = execute_rst,
+    [CPL] = execute_cpl,
+    [SCF] = execute_scf,
+    [CCF] = execute_ccf,
+    [RLA] = execute_rla,
+    [RRCA] = execute_rrca,
+    [HALT] = execute_halt,
+    [INT_TIMER] = int_timer_handler,
+    [INT_LCD] = int_lcd_handler,
+    [INT_VBLANK] = int_vblank_handler,
+    [INT_JOYPAD] = int_joypad_handler,
 
 };
 
