@@ -136,12 +136,12 @@ void UI::update_dbg_window()
 
 void UI::update()
 {
-    if (ppu->getLy() != SCREEN_HEIGHT_DEFAULT)
+    if (ppu->getLy() != SCREEN_HEIGHT_DEFAULT - 1)
         return;
 
     Uint32 current_time = SDL_GetTicks();
     // get all pixels from current scanline
-    Pixels(*frame)[SCREEN_WIDTH_DEFAULT] = ppu->getFrame();
+    Pixels **frame = ppu->getFrame();
     for (int row = 0; row < SCREEN_HEIGHT_DEFAULT; row++)
         for (int col = 0; col < SCREEN_WIDTH_DEFAULT; col++)
             updatePixelsView(screen, frame[row][col]);

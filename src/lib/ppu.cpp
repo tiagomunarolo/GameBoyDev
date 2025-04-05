@@ -29,9 +29,15 @@ PixelProcessingUnit::PixelProcessingUnit(Memory *mem)
     this->pixel_x = 0;
     this->internalWy = 0;
     // cleanup frame
+    // Allocate frame (2D array of Pixels)
+    this->frame = (Pixels **)malloc(SCREEN_HEIGHT_DEFAULT * sizeof(Pixels *));
     for (int i = 0; i < SCREEN_HEIGHT_DEFAULT; i++)
+    {
+        this->frame[i] = (Pixels *)malloc(SCREEN_WIDTH_DEFAULT * sizeof(Pixels));
         for (int j = 0; j < SCREEN_WIDTH_DEFAULT; j++)
-            this->frame[i][j] = Pixels{i, j, WHITE, false};
+            this->frame[i][j] = (Pixels){i, j, WHITE, false};
+    }
+
     // LCD
     mem->io[0x40] = 0x91;
     mem->io[0x41] = 0x81;

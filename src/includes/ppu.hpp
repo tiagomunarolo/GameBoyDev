@@ -78,7 +78,7 @@ private:
     Pixels getObjectsPixels(int y);
     Pixels getBackgroundPixels(int y);
     Pixels getWindowPixels(int y);
-    Pixels frame[SCREEN_HEIGHT_DEFAULT][SCREEN_WIDTH_DEFAULT];
+    Pixels **frame;
     // PPU modes
     void runOamMode();
     void runRenderMode();
@@ -95,7 +95,7 @@ public:
     // Flag to indicate if LCD is enabled
     bool IsLcdOn();
     // get pixels frame (160x144)
-    Pixels (*getFrame())[SCREEN_WIDTH_DEFAULT];
+    Pixels **getFrame();
     // Sync PPU cycles with internal timer
     void setCycles(int value);
     // Get current LY

@@ -188,11 +188,11 @@ void PixelProcessingUnit::setPixels()
         }
     }
 
-    this->frame[this->pixel_x][y] = pixels;
+    this->frame[y][this->pixel_x] = pixels;
     this->pixel_x = this->pixel_x + 1;
 }
 
-Pixels (*PixelProcessingUnit::getFrame())[SCREEN_WIDTH_DEFAULT]
+Pixels **PixelProcessingUnit::getFrame()
 {
     return this->frame;
 }
