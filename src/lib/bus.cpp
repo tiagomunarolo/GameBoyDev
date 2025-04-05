@@ -1,6 +1,7 @@
 #include "bus.hpp"
 #include "ppu.hpp"
 #include "timer.hpp"
+#include "dma.hpp"
 #include "joypad.hpp"
 // 0x0000 - 0x3FFF : ROM Bank 0
 // 0x4000 - 0x7FFF : ROM Bank 1 - Switchable
@@ -20,6 +21,10 @@ using namespace std;
 
 u8 read_u8bit_address(u16 address)
 {
+
+    // if (dma->active && address < 0xff80)
+    //     return 0x00;
+
     if (address >= 0 && address <= 0x3FFF)
     { // rom bank 0
         return memory->rom[address];
@@ -32,9 +37,6 @@ u8 read_u8bit_address(u16 address)
     }
     else if (address >= 0x8000 && address <= 0x9FFF)
     { // video ram
-        // inaccesible
-        // if (ppu->GetPpuMode() == RenderingMode)
-        //     return 0xFF;
         return memory->vram[address - 0x8000];
     }
     else if (address >= 0xA000 && address <= 0xBFFF)
@@ -57,15 +59,10 @@ u8 read_u8bit_address(u16 address)
     }
     else if (address >= 0xFE00 && address <= 0xFE9F)
     { // OAM
-        // inacessible during modes 2/3
-        // PpuMode mode = ppu->GetPpuMode();
-        // if (mode == RenderingMode || mode == OAMScanMode)
-        //     return 0xFF;
         return memory->oam[address - 0xfe00];
     }
     else if (address >= 0xFEA0 && address <= 0xFEFF)
     { // prohibited
-        // printf("INVALID ADDRESS read: <prohibited area> [%.2x]\n", address);
         return 0x00;
     }
     else if (address >= 0xFF00 && address <= 0xFF7F)
@@ -101,6 +98,8 @@ int8_t read_8bit_address(u16 address)
 
 void bus_write(u16 address, u8 value)
 {
+    // if (dma->active && address < 0xff80)
+    //     return;
     if (address >= 0 && address <= 0x7FFF)
     {
         // select current rom bank 1
@@ -122,9 +121,6 @@ void bus_write(u16 address, u8 value)
     }
     else if (address >= 0x8000 && address <= 0x9FFF)
     { // video ram
-        // if ppu in mode 3, VRAM is inaccessible
-        // if (ppu->GetPpuMode() == RenderingMode)
-        //     return;
         memory->vram[address - 0x8000] = value;
         return;
     }
@@ -151,11 +147,7 @@ void bus_write(u16 address, u8 value)
     }
     else if (address >= 0xFE00 && address <= 0xFE9F)
     { // OAM
-        // inacessible during modes 2/3
-        // PpuMode mode = ppu->GetPpuMode();
-        // if (mode == RenderingMode || mode == OAMScanMode)
-        //     return;
-        memory->oam[address - 0xfe00] = value;
+        dma->write(address, value);
         return;
     }
     else if (address >= 0xFEA0 && address <= 0xFEFF)
@@ -183,13 +175,7 @@ void bus_write(u16 address, u8 value)
         else if (address == 0xff46)
         { // // DMA OAM transfer
             memory->io[address - 0xFF00] = value;
-            for (int i = 0; i < 0xA0; i++)
-            {
-                u16 addr = (value << 8) + i;
-                memory->oam[i] = read_u8bit_address(addr);
-            }
-            // 640 cpu ticks (160m CPU cycles)
-            timer->update_timer(640);
+            dma->setActive(); // 640 cpu ticks (160m CPU cycles)
         }
         else
         {

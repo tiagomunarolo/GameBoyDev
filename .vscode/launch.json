@@ -8,7 +8,7 @@
             "request": "launch",
             "cwd": "${workspaceRoot}",
             "args": [
-                "${workspaceRoot}/games/tetris.gb"
+                "${workspaceRoot}/games/dr_mario.gb"
             ],
             "env": [],
             "preLaunchTask": "build"

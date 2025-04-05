@@ -29,6 +29,9 @@ GB::GB(const char *rom)
     // joypad
     joypad = new Joypad();
     this->joypad_ctx = joypad;
+    // dma
+    dma = new Dma();
+    this->dma_ctx = dma;
 }
 
 GB *gb = nullptr;

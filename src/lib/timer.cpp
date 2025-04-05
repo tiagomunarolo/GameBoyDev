@@ -1,5 +1,6 @@
 #include "timer.hpp"
 #include "ppu.hpp"
+#include "dma.hpp"
 #include "interruption.hpp"
 
 TimerHanlder::TimerHanlder(Memory *memory)
@@ -29,8 +30,9 @@ static bool bit_changed(u16 before, u16 after, int bit)
 
 void TimerHanlder::update_timer(int tcycles)
 {
-    // sync ppu with cpu timer
+    // sync ppu/dma with cpu timer
     ppu->setCycles(tcycles);
+    dma->setCycles(tcycles);
 
     // div is always updated
     for (int i = 0; i < tcycles; i++)

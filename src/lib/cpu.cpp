@@ -7,6 +7,7 @@
 #include "serial.hpp"
 #include "timer.hpp"
 #include "ppu.hpp"
+#include "dma.hpp"
 #include <chrono>
 #include <thread>
 
@@ -324,14 +325,13 @@ void CPU::run()
     while (this->running)
     {
       // IME takes one instruction to be enabled
-      ppu->run();
       bool oldImeDisabled = this->getIME() == false;
       if (this->getIME() && interruption->hasPendingInterruption())
       {
         this->setHalt(false); // unset halt
         this->call_interruption();
       }
-      serial->output_serial_data();
+      // serial->output_serial_data();
 
       // If halted, run for one cycle
       if (this->isHalted() && !interruption->hasPendingInterruption())
@@ -357,6 +357,8 @@ void CPU::run()
         this->setImePC = 0;
         this->setIME(true);
       }
+      dma->run();
+      ppu->run();
     }
     cout << "CPU thread finished gracefully" << endl;
   }

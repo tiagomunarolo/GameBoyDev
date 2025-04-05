@@ -1,6 +1,7 @@
 #include "ui.hpp"
 #include "ppu.hpp"
 #include "joypad.hpp"
+#include "dma.hpp"
 #include "interruption.hpp"
 
 #include <chrono>
@@ -15,19 +16,14 @@ int FPS_DESIRED = 60;
 
 using namespace std;
 
-static void updatePixelsView(SDL_Surface *surface, std::vector<Pixels> pixels)
+static void updatePixelsView(SDL_Surface *surface, Pixels p)
 {
     SDL_Rect rc;
-    while (!pixels.empty())
-    {
-        Pixels p = pixels.back(); // Get last element
-        pixels.pop_back();        // Remove last element
-        rc.y = p.y * SCALE;
-        rc.x = p.x * SCALE;
-        rc.w = SCALE;
-        rc.h = SCALE;
-        SDL_FillRect(surface, &rc, p.color);
-    }
+    rc.y = p.y * SCALE;
+    rc.x = p.x * SCALE;
+    rc.w = SCALE;
+    rc.h = SCALE;
+    SDL_FillRect(surface, &rc, p.color);
 }
 
 static void render_surface(SDL_Texture *texture, SDL_Renderer *renderer, SDL_Surface *surface)
@@ -140,21 +136,16 @@ void UI::update_dbg_window()
 
 void UI::update()
 {
-    if (!ppu->isRendering() || ppu->getLy() != SCREEN_HEIGHT_DEFAULT - 1)
-    {
-        if (ppu->isRendering())
-            ppu->finishRendering(); // unblock cpu/ppu
+    if (ppu->getLy() != SCREEN_HEIGHT_DEFAULT)
         return;
-    }
 
     Uint32 current_time = SDL_GetTicks();
     // get all pixels from current scanline
+    Pixels(*frame)[SCREEN_WIDTH_DEFAULT] = ppu->getFrame();
     for (int row = 0; row < SCREEN_HEIGHT_DEFAULT; row++)
-    {
-        std::vector<Pixels> pixels = ppu->getPixels(row);
-        // update screen pixels
-        updatePixelsView(screen, pixels);
-    }
+        for (int col = 0; col < SCREEN_WIDTH_DEFAULT; col++)
+            updatePixelsView(screen, frame[row][col]);
+
     // render elements
     render_surface(texture, renderer, screen);
     frame_count++;
@@ -166,7 +157,6 @@ void UI::update()
         frame_count = 0;
         start_time = current_time;
     }
-    ppu->finishRendering();
 
 #ifdef DEBUG_UI
     update_dbg_window();

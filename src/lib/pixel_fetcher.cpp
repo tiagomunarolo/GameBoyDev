@@ -157,42 +157,42 @@ Pixels PixelProcessingUnit::getObjectsPixels(int y)
     }
     return Pixels{-1, -1, 0, false};
 }
-
-std::vector<Pixels> PixelProcessingUnit::getPixels(int y)
+void PixelProcessingUnit::setPixels()
 {
-    std::vector<Pixels> pixelsVec;
-    while (pixelsVec.size() < SCREEN_WIDTH_DEFAULT)
+    int y = this->getLy();
+    Pixels pixels = this->getBackgroundPixels(y);
+    if (IsWindowFrameEnabled() && BgWindowEnablePriority())
     {
-        Pixels pixels = this->getBackgroundPixels(y);
-        if (IsWindowFrameEnabled() && BgWindowEnablePriority())
-        {
-            Pixels windowPixels = this->getWindowPixels(y);
-            // if valid window layer pixel
-            if (windowPixels.x != -1 && windowPixels.y != -1)
-                pixels.color = windowPixels.color;
-        }
+        Pixels windowPixels = this->getWindowPixels(y);
+        // if valid window layer pixel
+        if (windowPixels.x != -1 && windowPixels.y != -1)
+            pixels.color = windowPixels.color;
+    }
 
-        if (IsObjEnable())
-        {
-            Pixels objPixels = this->getObjectsPixels(y);
-            if (objPixels.x != -1 && objPixels.y != -1)
-            { // if valid object
+    if (IsObjEnable())
+    {
+        Pixels objPixels = this->getObjectsPixels(y);
+        if (objPixels.x != -1 && objPixels.y != -1)
+        { // if valid object
 
-                if (objPixels.bg_window_priority)
-                {
-                    if (pixels.color == WHITE)
-                        pixels.color = objPixels.color;
-                }
-                else
-                {
-                    if (objPixels.color != WHITE)
-                        pixels.color = objPixels.color;
-                }
+            if (objPixels.bg_window_priority)
+            {
+                if (pixels.color == WHITE)
+                    pixels.color = objPixels.color;
+            }
+            else
+            {
+                if (objPixels.color != WHITE)
+                    pixels.color = objPixels.color;
             }
         }
-
-        this->pixel_x = (this->pixel_x + 1) % SCREEN_WIDTH_DEFAULT;
-        pixelsVec.push_back(pixels);
     }
-    return pixelsVec;
+
+    this->frame[this->pixel_x][y] = pixels;
+    this->pixel_x = this->pixel_x + 1;
+}
+
+Pixels (*PixelProcessingUnit::getFrame())[SCREEN_WIDTH_DEFAULT]
+{
+    return this->frame;
 }

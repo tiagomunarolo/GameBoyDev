@@ -1,6 +1,6 @@
 #pragma once
-#include <vector>
 #include "definitions.hpp"
+#include "ui.hpp"
 #include "memory.hpp"
 
 // Screen dimensions
@@ -78,11 +78,14 @@ private:
     Pixels getObjectsPixels(int y);
     Pixels getBackgroundPixels(int y);
     Pixels getWindowPixels(int y);
+    Pixels frame[SCREEN_HEIGHT_DEFAULT][SCREEN_WIDTH_DEFAULT];
     // PPU modes
     void runOamMode();
     void runRenderMode();
     void runHblankMode();
     void runVblankMode();
+    // Method to fetch pixels on current row
+    void setPixels();
 
 public:
     // Constructor
@@ -91,16 +94,10 @@ public:
     void run();
     // Flag to indicate if LCD is enabled
     bool IsLcdOn();
-    // Method to fetch pixels on current row
-    std::vector<Pixels> getPixels(int row);
-    // Check ppu execution mode (view PpuMode)
-    PpuMode GetPpuMode();
+    // get pixels frame (160x144)
+    Pixels (*getFrame())[SCREEN_WIDTH_DEFAULT];
     // Sync PPU cycles with internal timer
-    void setCycles(u8 value);
-    // flag to allow Rendering
-    bool isRendering();
-    // unset rendering flag
-    void finishRendering();
+    void setCycles(int value);
     // Get current LY
     u8 getLy();
 };

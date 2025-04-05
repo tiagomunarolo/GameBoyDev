@@ -1,8 +1,5 @@
 #include "ppu.hpp"
-#include "ui.hpp"
 #include "interruption.hpp"
-#include <thread>
-#include <chrono>
 
 using namespace std;
 
@@ -31,6 +28,10 @@ PixelProcessingUnit::PixelProcessingUnit(Memory *mem)
     // current pixel x position
     this->pixel_x = 0;
     this->internalWy = 0;
+    // cleanup frame
+    for (int i = 0; i < SCREEN_HEIGHT_DEFAULT; i++)
+        for (int j = 0; j < SCREEN_WIDTH_DEFAULT; j++)
+            this->frame[i][j] = Pixels{i, j, WHITE, false};
     // LCD
     mem->io[0x40] = 0x91;
     mem->io[0x41] = 0x81;
@@ -55,25 +56,6 @@ PixelProcessingUnit::PixelProcessingUnit(Memory *mem)
     obp01 = &mem->io[0x49];
     wy = &mem->io[0x4A];
     wx = &mem->io[0x4B];
-}
-
-PpuMode PixelProcessingUnit::GetPpuMode()
-{
-    // lower two bits
-    u8 mode = *this->stat & 0b11;
-    switch (mode)
-    {
-    case 0x00:
-        return HBlankMode;
-    case 0x01:
-        return VBlankMode;
-    case 0x02:
-        return OAMScanMode;
-    case 0x03:
-        return RenderingMode;
-    default:
-        throw std::runtime_error("Invalid PPU mode");
-    }
 }
 
 bool PixelProcessingUnit::IsLcdOn()
@@ -191,17 +173,7 @@ u8 PixelProcessingUnit::getWY()
     return *this->wy;
 }
 
-bool PixelProcessingUnit::isRendering()
-{
-    return this->mode == RenderingMode;
-}
-
-void PixelProcessingUnit::finishRendering()
-{
-    this->mode = HBlankMode;
-}
-
-void PixelProcessingUnit::setCycles(u8 value)
+void PixelProcessingUnit::setCycles(int value)
 {
 
     this->cycles += value;
@@ -221,8 +193,12 @@ void PixelProcessingUnit::runOamMode()
 {
     this->mode = OAMScanMode;
     *this->stat = ((*this->stat & 0xFC) | 0x2);
-    if (this->cycles < 80)
+    if (this->current_dot < 80)
+    {
+        this->current_dot += this->cycles;
+        this->cycles = 0;
         return;
+    }
     // FE00	FE9F	Object attribute memory (OAM)
     for (int i = 0; i <= 40; i++)
     {
@@ -232,20 +208,22 @@ void PixelProcessingUnit::runOamMode()
         this->sprites[i].attributes = mem->oam[4 * i + 3];
     }
 
-    this->cycles -= 80;
-    this->current_dot += 80;
     this->mode = RenderingMode;
+    this->pixel_x = 0; // ensure pixel x starts from 0
 }
 
 void PixelProcessingUnit::runRenderMode()
 {
     *this->stat = ((*this->stat & 0xFC) | 0x3);
-    while (this->mode == RenderingMode)
-        ;
-    this->current_dot += 172; // minimum duration of mode 3
+    while (this->cycles && this->pixel_x < SCREEN_WIDTH_DEFAULT)
+    {
+        this->setPixels();
+        this->current_dot += 1;
+        this->cycles -= 1;
+    }
+    if (this->pixel_x < SCREEN_WIDTH_DEFAULT)
+        return;
     this->mode = HBlankMode;
-    this->current_dot += cycles;
-    this->cycles = 0;
 }
 
 void PixelProcessingUnit::runVblankMode()
@@ -262,6 +240,7 @@ void PixelProcessingUnit::runVblankMode()
         vblank_lines = 0;
         *this->ly = 0;
         this->current_dot = 0;
+        return;
     }
 
     if (*this->ly == 144)
@@ -276,11 +255,10 @@ void PixelProcessingUnit::runHblankMode()
     *this->stat = (*this->stat & 0xFC);
     this->pixel_x = 0; // set pixel x to 0
     this->current_dot += this->cycles;
-    int diff = current_dot - cycles;
 
     if (this->current_dot < DOTS_PER_LINE)
     {
-        this->cycles -= diff;
+        this->cycles = DOTS_PER_LINE - this->current_dot;
         return;
     }
     if (*ly == SCREEN_HEIGHT_DEFAULT - 1)
@@ -296,6 +274,7 @@ void PixelProcessingUnit::runHblankMode()
 // 1 ppu dot is 4 cpu cycles
 void PixelProcessingUnit::run()
 {
+
     if (mode == VBlankMode)
         this->runVblankMode();
     else if (mode == OAMScanMode)
